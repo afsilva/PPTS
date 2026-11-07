@@ -33,7 +33,7 @@ This modernization is being developed with human direction and review using [Goo
 
 Model information recorded for work on this repository:
 
-- **OpenAI GPT-5.5**, accessed through Goose's ChatGPT Codex provider, was used for the current authentication, container, documentation, security-review, and release-preparation work.
+- **OpenAI gpt-5.6-sol**, accessed through Goose's ChatGPT Codex provider, was used for the current authentication, container, documentation, security-review, and release-preparation work.
 - **Qwen 3.8** was used during an earlier implementation/review handoff.
 - Some earlier AI-assisted work was handed off without durable provider/model metadata; it is intentionally not attributed to a guessed model.
 
