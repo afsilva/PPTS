@@ -14,13 +14,30 @@ According to the preserved homepage, the expanded system was functional within W
 
 This repository is a modern, security-focused successor—not a claim that the original implementation has been continuously maintained. It preserves the core ideas of people presence, project knowledge, and time tracking while rebuilding them on a current architecture. Historical details are sourced from the [April 2001](https://web.archive.org/web/20010404005450/http://ppts.sourceforge.net/) and [July 2001](https://web.archive.org/web/20010720111511/http://ppts.sourceforge.net/) archived project pages.
 
-## Technology
+## Modernization technology
 
-- Next.js 16, React 19, and TypeScript
-- PostgreSQL 18 with Prisma
-- Server-rendered UI with an original, restrained design inspired by clarity and spatial consistency
-- Docker Compose for a production-like local deployment
-- OWASP Top 10:2025 and ASVS 5.0 Level 2 security targets
+The port replaces the original early-2000s application with a server-rendered TypeScript system built on:
+
+- Next.js 16.4.5, React 19.3.1, TypeScript 5.9.3, and Node.js 24
+- PostgreSQL 18.3 with Prisma 7.10.1
+- Keycloak 26.8.1 and standards-based OIDC Authorization Code flow with PKCE
+- Podman Compose with native ARM64/AMD64 images, isolated networks, and digest-pinned runtime images
+- `jose` for JWT verification and purpose-bound authenticated encryption
+- Node's built-in test runner, ESLint, Prettier, and reproducible npm supply-chain gates
+- A server-rendered UI with an original, restrained design inspired by clarity and spatial consistency
+- OWASP Top 10:2025 and OWASP ASVS 5.0 Level 2 security targets
+
+## AI-assisted development disclosure
+
+This modernization is being developed with human direction and review using [Goose](https://github.com/aaif/goose), an open-source agentic AI interface from the Agentic AI Foundation. Goose has been used to inspect the legacy and current code, propose and edit implementation and documentation, run development tools, investigate failures, and execute verification workflows.
+
+Model information recorded for work on this repository:
+
+- **OpenAI GPT-5.5**, accessed through Goose's ChatGPT Codex provider, was used for the current authentication, container, documentation, security-review, and release-preparation work.
+- **Qwen 3.8** was used during an earlier implementation/review handoff.
+- Some earlier AI-assisted work was handed off without durable provider/model metadata; it is intentionally not attributed to a guessed model.
+
+AI-generated or AI-edited output is not treated as authoritative by itself. Changes are accepted through source review, threat modeling, dependency and secret checks, unit and end-to-end tests, production builds, and human approval. Commit history records the resulting changes but should not be interpreted as a complete transcript of AI interaction. Model assignments may change in future work; this section records the models known to have contributed to the current baseline.
 
 ## Quick start
 
