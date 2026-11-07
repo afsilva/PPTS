@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.7
 FROM node:24.13.1-bookworm-slim AS dependencies
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
