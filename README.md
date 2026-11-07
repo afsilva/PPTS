@@ -19,12 +19,15 @@ A secure, modern successor to the original **People & Projects Tracking System**
 Requirements: Git, GNU/BSD Make, and a current Podman release with Compose support. The same commands work on macOS and Linux, and use native OCI images on Apple Silicon/ARM64 and Intel/AMD64.
 
 ```bash
-cp .env.example .env.local
-# Replace POSTGRES_PASSWORD in .env.local, then:
 make start
 ```
 
-On macOS, `make start` creates or starts the Podman machine when needed. Open <http://localhost:3000>. The database is internal-only; only the application binds to `127.0.0.1`.
+The first run creates a private configuration file **outside the Git repository**, sets mode `0600`, and stops so you can replace its password:
+
+- macOS: `~/Library/Application Support/PPTS/environment`
+- Linux: `${XDG_STATE_HOME:-~/.local/state}/ppts/environment`
+
+Run `make start` again after editing it. The tooling rejects runtime or environment paths inside the repository. On macOS, it also creates or starts the Podman machine when needed. Open <http://localhost:3000>. The database is internal-only; only the application binds to `127.0.0.1`.
 
 ```bash
 make restart  # rebuild and restart, preserving data
@@ -41,7 +44,7 @@ make logs
 Use Node.js 24+ and a local PostgreSQL 18 instance:
 
 ```bash
-cp .env.example .env.local
+export DATABASE_URL='postgresql://ppts:YOUR_LOCAL_PASSWORD@localhost:5432/ppts'
 npm ci
 npm run db:generate
 npm run db:migrate

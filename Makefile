@@ -2,11 +2,13 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 PODMAN ?= podman
-ENV_FILE ?= .env.local
+RUNTIME_DIR ?=
+ENV_FILE ?=
 COMPOSE_FILE ?= compose.yaml
 PPTS_PORT ?= 3000
 
 export PODMAN
+export RUNTIME_DIR
 export ENV_FILE
 export COMPOSE_FILE
 export PPTS_PORT
@@ -25,7 +27,11 @@ help: ## Show available commands
 	  '  make logs      Follow application logs' \
 	  '  make config    Render and validate the Compose configuration' \
 	  '' \
-	  'Overrides: ENV_FILE=.env.local PPTS_PORT=3000 PODMAN=podman'
+	  'Secrets default outside this repository:' \
+	  '  macOS: ~/Library/Application Support/PPTS/environment' \
+	  '  Linux: $${XDG_STATE_HOME:-~/.local/state}/ppts/environment' \
+	  '' \
+	  'Overrides: RUNTIME_DIR=/external/path PPTS_PORT=3000 PODMAN=podman'
 
 start: ## Start the local stack
 	@./scripts/containers.sh start
