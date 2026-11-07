@@ -4,6 +4,16 @@ A secure, modern successor to the original **People & Projects Tracking System**
 
 > **Status:** pre-release foundation. Local OIDC authentication and revocable database-backed sessions are implemented; the dashboard still uses clearly labeled preview business data. Do not use this version for production timekeeping or expose the local stack beyond loopback.
 
+## History of PPTS
+
+The original [PPTS project site](https://ppts.sourceforge.net) traces the system to an idea from September 2000 and an initial application created the following month as **IPTS—the Internal People Tracking System**. IPTS used a bulletin-board-style workflow that let employees at Whetstone Logic, Inc. publish their current activity, such as being at lunch, coding, or testing.
+
+As the application became important to the company, it grew beyond presence tracking. A time-clock system let people clock into a project and record the kind of work they were performing, while monthly reports summarized hours by project for management and billing. A project-tracking area became a shared “corporate memory,” associating project details and uploaded documents with the work.
+
+According to the preserved homepage, the expanded system was functional within Whetstone Logic by February 2001. Its authors renamed it **PPTS—People & Projects Tracking System** to better describe its broader purpose and released it as open source for use by companies, universities, telecommuters, and distributed teams. An archived July 2001 homepage announced **PPTS 2.0 Alpha 3**, dated May 2, 2001.
+
+This repository is a modern, security-focused successor—not a claim that the original implementation has been continuously maintained. It preserves the core ideas of people presence, project knowledge, and time tracking while rebuilding them on a current architecture. Historical details are sourced from the [April 2001](https://web.archive.org/web/20010404005450/http://ppts.sourceforge.net/) and [July 2001](https://web.archive.org/web/20010720111511/http://ppts.sourceforge.net/) archived project pages.
+
 ## Technology
 
 - Next.js 16, React 19, and TypeScript
