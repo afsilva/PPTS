@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMINISTRATOR
+  AUDITOR
+}
+
+enum PresenceState {
+  OFF_DUTY
+  AVAILABLE
+  WORKING
+}
+
+enum ProjectRole {
+  CONTRIBUTOR
+  MANAGER
+}
+
+model User {
+  id            String          @id @default(uuid()) @db.Uuid
+  issuer        String
+  subject       String
+  username      String          @unique
+  displayName   String
+  email         String          @unique
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+  roles         UserRole[]
+  memberships   ProjectMember[]
+  presence      Presence?
+  timeEntries   TimeEntry[]
+  auditEvents   AuditEvent[]    @relation("AuditActor")
+
+  @@unique([issuer, subject])
+  @@index([active])
+}
+
+model UserRole {
+  userId String @db.Uuid
+  role   Role
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model Client {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique
+  archivedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+  projects   Project[]
+}
+
+model ProjectStatus {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique
+  description String    @default("")
+  projects    Project[]
+}
+
+model Project {
+  id               String          @id @default(uuid()) @db.Uuid
+  clientId         String          @db.Uuid
+  statusId         String          @db.Uuid
+  name             String
+  description      String          @default("")
+  billingRateCents Int?
+  archivedAt       DateTime?       @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+  client           Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  status           ProjectStatus   @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  members          ProjectMember[]
+  presence         Presence[]
+  timeEntries      TimeEntry[]
+
+  @@unique([clientId, name])
+  @@index([statusId])
+}
+
+model ProjectMember {
+  projectId String      @db.Uuid
+  userId    String      @db.Uuid
+  role      ProjectRole @default(CONTRIBUTOR)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model WorkCode {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @unique
+  description String      @default("")
+  active      Boolean     @default(true)
+  timeEntries TimeEntry[]
+}
+
+model Presence {
+  userId    String        @id @db.Uuid
+  state     PresenceState @default(OFF_DUTY)
+  projectId String?       @db.Uuid
+  message   String        @default("") @db.VarChar(280)
+  version   Int           @default(1)
+  updatedAt DateTime      @updatedAt @db.Timestamptz(3)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([state])
+  @@index([projectId])
+}
+
+model TimeEntry {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  projectId  String    @db.Uuid
+  workCodeId String    @db.Uuid
+  startedAt  DateTime  @db.Timestamptz(3)
+  endedAt    DateTime? @db.Timestamptz(3)
+  note       String    @default("") @db.VarChar(2000)
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  workCode   WorkCode  @relation(fields: [workCodeId], references: [id], onDelete: Restrict)
+
+  @@index([userId, startedAt])
+  @@index([projectId, startedAt])
+}
+
+model AuditEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  occurredAt   DateTime @default(now()) @db.Timestamptz(3)
+  actorId      String?  @db.Uuid
+  action       String   @db.VarChar(100)
+  resourceType String   @db.VarChar(100)
+  resourceId   String?  @db.VarChar(100)
+  outcome      String   @db.VarChar(30)
+  requestId    String?  @db.VarChar(100)
+  metadata     Json     @default("{}")
+  actor        User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([action, occurredAt])
+}

@@ -1,0 +1,71 @@
+name: ppts
+
+services:
+  db:
+    image: postgres:18.3-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ppts
+      POSTGRES_USER: ppts
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    volumes:
+      - ppts-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ppts -d ppts"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:-local-development-only}@db:5432/ppts
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:-local-development-only}@db:5432/ppts
+    ports:
+      - "127.0.0.1:${PPTS_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /app/.next/cache:size=64m,uid=1001,gid=1001,mode=0700
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [backend]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+networks:
+  backend:
+    internal: true
+
+volumes:
+  ppts-db:

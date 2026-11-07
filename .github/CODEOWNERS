@@ -1,0 +1,7 @@
+# Replace with the GitHub owner/team before publishing.
+* @ansilva
+/.github/ @ansilva
+/prisma/ @ansilva
+/src/security/ @ansilva
+/src/modules/identity/ @ansilva
+/docs/security/ @ansilva

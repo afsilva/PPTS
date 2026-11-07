@@ -1,0 +1,16 @@
+# Testing strategy
+
+## Required gates
+
+`npm run verify` checks formatting, lint, type safety, Prisma generation, production build, and production-dependency audit. CI also scans all dependencies and uploads build artifacts as capabilities mature.
+
+## Test layers
+
+- **Unit:** pure domain state transitions, policy decisions, validation, duration/timezone logic.
+- **Integration:** real PostgreSQL transactions, constraints, concurrent clock requests, audit writes, migrations from empty DB.
+- **E2E:** OIDC login/logout, employee clock flow, admin scoped reads, CSRF/origin rejection, production-safe errors.
+- **Security:** every authorization capability has allow and deny cases; SAST/SCA/secrets, DAST on staging, header/CSP checks.
+- **Accessibility:** automated checks plus keyboard, screen reader, 200% zoom, 320 CSS-pixel reflow, contrast, forced colors, and reduced motion.
+- **Operations:** production container health, backup/restore into clean PostgreSQL, migration failure/rollback procedure.
+
+Milestone 1 is not complete until simultaneous clock-in requests prove that PostgreSQL permits at most one open entry and unauthorized cross-user requests are denied and audited.

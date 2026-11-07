@@ -1,0 +1,6 @@
+.next
+node_modules
+src/generated
+coverage
+package-lock.json
+MODERNIZATION_PROPOSAL.md
