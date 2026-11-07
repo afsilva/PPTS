@@ -12,23 +12,23 @@ Employees, managers, administrators, auditors, unauthenticated attackers, compro
 
 ## Primary abuse cases and controls
 
-| Abuse case                             | Primary controls                                                                                                           |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Change another worker's status/time    | Session-derived actor; resource policies; no actor form field; negative tests; audit                                       |
-| Create overlapping/open entries        | Transaction and lock strategy; PostgreSQL partial unique index; idempotency; concurrency tests                             |
-| Inject SQL/script/content              | Prisma parameter binding; Zod allowlists/limits; React encoding; no raw HTML; CSP                                          |
-| Traverse/delete/upload arbitrary files | No filesystem-derived client paths; random private object keys; membership checks; quarantine/scanning; CSRF/origin checks |
-| Steal or replay sessions               | Validated OIDC flow, MFA, secure HttpOnly cookies, rotation/expiry, logout invalidation, no browser token storage          |
-| Abuse admin capability                 | Explicit policies, least privilege, reauthentication for sensitive changes, immutable audit, alerting                      |
-| Expose PII via logs/reports            | Data minimization, field policy, redaction, retention, authorized exports, no sensitive telemetry                          |
-| Poison dependencies/builds             | Lockfile, automated updates, SCA/SAST/secrets, protected reviews, pinned actions/images, SBOM/signing roadmap              |
-| Cause resource exhaustion              | Proxy body/time limits, rate limits, quotas, pagination, DB timeouts, bounded uploads                                      |
-| Hide actions by altering audit events  | Append-only service, separate DB privileges and centralized export in production                                           |
-| Fail open during DB/IdP/storage faults | Typed errors, generic responses, transactions, timeouts, deny on policy uncertainty, fault tests                           |
+| Abuse case                             | Primary controls                                                                                                                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Change another worker's status/time    | Session-derived actor; resource policies; no actor form field; negative tests; audit                                                                                                            |
+| Create overlapping/open entries        | Transaction and lock strategy; PostgreSQL partial unique index; idempotency; concurrency tests                                                                                                  |
+| Inject SQL/script/content              | Prisma parameter binding; Zod allowlists/limits; React encoding; no raw HTML; CSP                                                                                                               |
+| Traverse/delete/upload arbitrary files | No filesystem-derived client paths; random private object keys; membership checks; quarantine/scanning; CSRF/origin checks                                                                      |
+| Steal or replay sessions               | Current local: validated OIDC, encrypted HttpOnly SameSite cookies, absolute/idle expiry, revocation, provider logout. Production: HTTPS Secure cookies, MFA, and approved key/session rotation |
+| Abuse admin capability                 | Explicit policies, least privilege, reauthentication for sensitive changes, immutable audit, alerting                                                                                           |
+| Expose PII via logs/reports            | Data minimization, field policy, redaction, retention, authorized exports, no sensitive telemetry                                                                                               |
+| Poison dependencies/builds             | Lockfile, automated updates, SCA/SAST/secrets, protected reviews, pinned actions/images, SBOM/signing roadmap                                                                                   |
+| Cause resource exhaustion              | Proxy body/time limits, rate limits, quotas, pagination, DB timeouts, bounded uploads                                                                                                           |
+| Hide actions by altering audit events  | Append-only service, separate DB privileges and centralized export in production                                                                                                                |
+| Fail open during DB/IdP/storage faults | Typed errors, generic responses, transactions, timeouts, deny on policy uncertainty, fault tests                                                                                                |
 
 ## Current residual risks
 
-The foundation dashboard is preview-only and unauthenticated. It intentionally has no mutations and displays synthetic data. OIDC, session management, CSRF/origin enforcement, database-backed readiness, audit persistence, rate limiting, and alert delivery are Milestone 1 work and block production approval. CSP temporarily permits inline style for chart rendering.
+The foundation dashboard requires a validated local OIDC session but still displays mostly synthetic preview data and has no business-data mutations. Implemented controls include Authorization Code with PKCE, fail-closed role provisioning, revocable absolute/idle-expiring server-side sessions, exact-origin logout CSRF enforcement, RP-initiated provider logout, inactive-user denial, database-backed sessions, and sanitized authentication audit events. Remaining production blockers include dependency-aware readiness, route/resource authorization policy coverage, rate limiting, session cleanup and caps, durable audit export/alerting, production HTTPS/MFA/managed-secret integration, CI action pinning/release provenance, and complete business-flow tests. CSP temporarily permits inline style for chart rendering.
 
 ## Review triggers
 

@@ -13,7 +13,7 @@ export ENV_FILE
 export COMPOSE_FILE
 export PPTS_PORT
 
-.PHONY: help start restart stop clean status logs config
+.PHONY: help start restart stop clean status logs config credentials
 
 help: ## Show available commands
 	@printf '%s\n' \
@@ -22,10 +22,11 @@ help: ## Show available commands
 	  '  make start     Start the Podman machine if needed, build, migrate, and run PPTS' \
 	  '  make restart   Stop and start the stack' \
 	  '  make stop      Stop containers while preserving database data' \
-	  '  make clean     Remove containers, images, and the local database volume' \
+	  '  make clean     Remove containers, images, and both local database volumes' \
 	  '  make status    Show stack status' \
 	  '  make logs      Follow application logs' \
 	  '  make config    Render and validate the Compose configuration' \
+	  '  make credentials  Show generated local-only login credentials' \
 	  '' \
 	  'Secrets default outside this repository:' \
 	  '  macOS: ~/Library/Application Support/PPTS/environment' \
@@ -53,3 +54,6 @@ logs: ## Follow application logs
 
 config: ## Validate Compose configuration
 	@./scripts/containers.sh config
+
+credentials: ## Show generated local-only credentials
+	@./scripts/show-credentials.sh

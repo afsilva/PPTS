@@ -28,7 +28,7 @@ Expect acknowledgment within three business days. Do not test against systems or
 - Exact-pinned dependencies, a 72-hour publication cooling-off gate, zero-known-vulnerability/deprecation policy, automated updates, and SAST/SCA/secret scanning
 - SBOMs and signed release provenance as the delivery pipeline matures
 
-See [the threat model](docs/security/threat-model.md) and [authorization matrix](docs/security/authorization-matrix.md).
+See the [threat model](docs/security/threat-model.md), [OWASP Top 10:2025 status](docs/security/owasp-top-10-2025.md), and [authorization matrix](docs/security/authorization-matrix.md).
 
 ## Data handling prohibition
 
@@ -36,8 +36,8 @@ Never commit or upload real legacy database dumps, production documents, passwor
 
 ## Known foundation limitations
 
-- OIDC and application sessions are planned for the next vertical slice; the preview has no sign-in and no mutations.
-- Readiness does not yet query PostgreSQL because the preview does not consume database data.
+- Local OIDC sign-in and revocable server-side application sessions are implemented; the preview still has no business-data mutations.
+- Readiness does not yet query PostgreSQL or the identity provider and is not production-ready.
 - Compose uses local HTTP bound to loopback. Production must terminate managed TLS and use HSTS.
 - CSP currently permits inline style because React emits calculated chart heights. Remove this allowance with nonce/hashing or static classes before production approval.
 - The development database credential is convenient, not a production secret-management pattern.

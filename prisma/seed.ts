@@ -8,7 +8,9 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: data
 
 async function main() {
   const user = await prisma.user.upsert({
-    where: { username: "demo.admin" },
+    where: {
+      issuer_subject: { issuer: "https://local.ppts.invalid", subject: "demo-admin" },
+    },
     update: {},
     create: {
       issuer: "https://local.ppts.invalid",

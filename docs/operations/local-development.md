@@ -2,7 +2,7 @@
 
 ## Separation of source and runtime secrets
 
-The repository contains only the non-secret `.env.example` template. Local credentials, API keys, and future identity-provider secrets must live outside the checkout.
+The repository contains only the non-secret `.env.example` template. Local credentials, session secrets, API keys, and identity-provider secrets must live outside the checkout.
 
 Default private runtime locations:
 
@@ -34,10 +34,10 @@ The first invocation:
 
 1. Selects the external platform-appropriate runtime directory.
 2. Copies `.env.example` to its private `environment` file.
-3. Applies restrictive file permissions.
-4. Stops and asks you to replace `POSTGRES_PASSWORD`.
+3. Generates all local database, Keycloak, account, and session secrets.
+4. Applies restrictive permissions and stops so the file can be reviewed.
 
-Edit the path printed by the command, then run:
+Review the path printed by the command if desired, then run:
 
 ```bash
 make start
@@ -45,22 +45,22 @@ make start
 
 On macOS, the script also detects whether a Podman machine exists and starts or creates it when necessary. On Linux, Podman runs natively.
 
-The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service before the app starts. Database data persists in the Podman-managed `ppts-db` volume.
+The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service before the app starts. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes.
 
 ### Lifecycle commands
 
 ```bash
 make start     # build, migrate, start, and wait for health
 make restart   # rebuild/restart while preserving database data
-make stop      # stop containers while preserving database data
-make clean     # remove containers, local images, and database volume
+make stop      # stop containers while preserving both databases
+make clean     # remove containers, local images, and both database volumes
 make status    # show service status
 make logs      # follow application logs
 make config    # render and validate Compose configuration
 make help
 ```
 
-`make clean` permanently deletes the Podman database volume. It intentionally preserves the external runtime directory and credentials. Remove that directory manually only when you also intend to delete local credentials.
+`make clean` permanently deletes both Podman database volumes. It intentionally preserves the external runtime directory and credentials. Remove that directory manually only when you also intend to delete local credentials.
 
 ### Overrides
 
@@ -70,6 +70,7 @@ A runtime location may be selected explicitly, but it must remain outside the re
 make start RUNTIME_DIR="$HOME/.ppts-sandbox"
 make start RUNTIME_DIR=/srv/ppts-local
 make start PPTS_PORT=3001
+make start PPTS_PORT=3001 KEYCLOAK_PORT=8081
 make config PODMAN=/usr/local/bin/podman
 ```
 
@@ -97,10 +98,14 @@ make help
 
 ## Native development path
 
-For native development, keep secrets in an external shell/session secret source instead of a repository `.env` file. Start PostgreSQL separately, then:
+The supplied local Keycloak environment is Compose-based. A fully native app also requires a separately configured OIDC provider with matching callback and post-logout URLs. Keep all values in an external shell/session secret source instead of a repository `.env` file:
 
 ```bash
 export DATABASE_URL='postgresql://ppts:YOUR_LOCAL_PASSWORD@localhost:5432/ppts'
+export APP_ORIGIN='http://localhost:3000'
+export OIDC_ISSUER='https://YOUR-IDP.example/realms/ppts'
+export OIDC_CLIENT_ID='ppts-local'
+export SESSION_SECRET='A_BASE64URL_SECRET_OF_AT_LEAST_43_CHARACTERS'
 npm ci
 npm run db:generate
 npm run db:migrate
@@ -108,7 +113,7 @@ npm run db:seed
 npm run dev
 ```
 
-Do not add the exported value to shell history. Prefer a user-level secret manager or protected external file for regular use.
+Do not add exported values to shell history. Prefer a user-level secret manager or protected external file. `OIDC_INTERNAL_ISSUER` is optional for trusted server-side routing that differs from the browser-facing issuer.
 
 ## Troubleshooting
 
@@ -118,7 +123,7 @@ Do not add the exported value to shell history. Prefer a user-level secret manag
 - **Permissions rejected:** run `chmod 700 <runtime-directory>` and `chmod 600 <environment-file>`.
 - **Repository path rejected:** choose a `RUNTIME_DIR` outside the PPTS checkout.
 - **Migration failure:** run `make logs` and inspect the migration container with Podman; never edit an applied migration.
-- **Complete database reset:** run `make clean`, then `make start`.
+- **Complete application and identity database reset:** run `make clean`, then `make start`.
 - **Architecture diagnostics:** run `uname -m` and `podman info --format '{{.Host.Arch}}'`.
 
 ## Security boundaries

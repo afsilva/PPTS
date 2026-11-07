@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1.7
-FROM node:24.13.1-bookworm-slim AS dependencies
+FROM node:24.13.1-bookworm-slim@sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2 AS dependencies
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
@@ -11,7 +10,7 @@ FROM dependencies AS builder
 COPY . .
 RUN npx prisma generate && npm run build
 
-FROM node:24.13.1-bookworm-slim AS runner
+FROM node:24.13.1-bookworm-slim@sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2 AS runner
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \

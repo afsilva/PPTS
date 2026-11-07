@@ -18,7 +18,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "verify": "npm run supply-chain && npm run deprecations && npm run audit && npm run format:check && npm run lint && npm run typecheck && npm run db:generate && npm run build",
+    "test": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --test tests/unit/*.test.ts",
+    "verify": "npm run supply-chain && npm run deprecations && npm run audit && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
     "supply-chain": "node scripts/check-npm-supply-chain.mjs",
     "audit": "npm audit --audit-level=low",
     "deprecations": "node scripts/verify-dependency-metadata.mjs"
@@ -26,6 +27,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "jose": "6.2.15",
     "next": "16.4.5",
     "pg": "8.23.1",
     "react": "19.3.1",
@@ -43,6 +45,7 @@
     "globals": "16.4.0",
     "prettier": "3.9.10",
     "prisma": "7.10.1",
+    "server-only": "0.0.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.1"

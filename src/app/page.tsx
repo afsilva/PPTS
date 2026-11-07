@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+import { readSession } from "@/auth/session";
+import { displayRole } from "@/auth/roles";
 import styles from "./page.module.css";
 
 const people = [
@@ -33,7 +36,16 @@ function Icon({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const session = await readSession();
+  if (!session) redirect("/login");
+  const displayName = session.user.displayName;
+  const initials = displayName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
   return (
     <div className={styles.shell}>
       <a className={styles.skipLink} href="#main">
@@ -66,12 +78,16 @@ export default function Home() {
             <Icon>⚙</Icon>Settings
           </a>
           <div className={styles.profile}>
-            <span className={`${styles.avatar} ${styles.avatarBlue}`}>AM</span>
+            <span className={`${styles.avatar} ${styles.avatarBlue}`}>{initials}</span>
             <span>
-              <strong>Alex Morgan</strong>
-              <small>Administrator</small>
+              <strong>{displayName}</strong>
+              <small>{displayRole(session.user.roles.map(({ role }) => role))}</small>
             </span>
-            <button aria-label="Open account menu">•••</button>
+            <form action="/auth/logout" method="post">
+              <button aria-label="Sign out" title="Sign out">
+                ↪
+              </button>
+            </form>
           </div>
         </div>
       </aside>
@@ -83,7 +99,7 @@ export default function Home() {
           </button>
           <div>
             <p className={styles.eyebrow}>Friday, November 7</p>
-            <h1>Good morning, Alex.</h1>
+            <h1>Good morning, {displayName.split(" ")[0]}.</h1>
           </div>
           <div className={styles.topActions}>
             <button className={styles.iconButton} aria-label="Search">

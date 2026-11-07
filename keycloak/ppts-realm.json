@@ -1,0 +1,59 @@
+{
+  "realm": "ppts",
+  "enabled": true,
+  "displayName": "PPTS Local Identity",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      { "name": "EMPLOYEE" },
+      { "name": "MANAGER" },
+      { "name": "ADMINISTRATOR" },
+      { "name": "AUDITOR" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ppts-local",
+      "name": "PPTS Local",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email"],
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/auth/callback"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/login"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alex.admin",
+      "firstName": "Alex",
+      "lastName": "Morgan",
+      "email": "alex.admin@local.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["EMPLOYEE", "ADMINISTRATOR"]
+    },
+    {
+      "username": "casey.employee",
+      "firstName": "Casey",
+      "lastName": "Lee",
+      "email": "casey.employee@local.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["EMPLOYEE"]
+    }
+  ]
+}

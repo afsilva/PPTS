@@ -1,6 +1,6 @@
 # Roadmap
 
-## Milestone 0 — Repository foundation (current)
+## Milestone 0 — Repository foundation (completed)
 
 - Reproducible Next.js/TypeScript application and hardened container
 - PostgreSQL/Prisma schema with relational constraints
@@ -8,15 +8,26 @@
 - Responsive, accessible dashboard preview and design tokens
 - Security headers, dependency audit, CI, and living documentation
 
-## Milestone 1 — Secure time-tracking vertical slice
+## Milestone 1 — Secure time-tracking vertical slice (current)
 
-- OIDC Authorization Code + PKCE using a local identity provider and production-IdP sandbox
-- Immutable issuer/subject user mapping and secure server-side sessions
-- Employee and administrator policies with negative authorization tests
+### Implemented local authentication baseline
+
+- Local Keycloak OIDC Authorization Code flow with PKCE, state, and nonce
+- Immutable issuer/subject user mapping and fail-closed role provisioning
+- Revocable server-side sessions with absolute and idle expiry
+- Origin-protected application logout and provider SSO termination
+- Sanitized authentication audit events
+- Separate application/identity databases and idempotent realm reconciliation
+
+### Remaining before the vertical slice is complete
+
+- Production-IdP sandbox and production HTTPS/MFA validation
+- Deny-by-default employee/administrator resource policies with negative tests
 - Database-backed dashboard, project membership, and personal time history
 - Transactional clock-in, clock-out, and project/work-code switching
 - Idempotency and concurrency tests proving one open entry per user
-- Append-only audit events and database-aware readiness
+- Append-only business audit coverage and dependency-aware readiness
+- Login rate limits, session caps/cleanup, and audit retention/alerting
 - PostgreSQL backup/restore smoke test
 
 ## Milestone 2 — Core administration
@@ -37,4 +48,4 @@ Repeatable legacy ETL, document manifests/hashes, reconciliation, accessibility 
 
 ## Decision gates
 
-Before Milestone 1: confirm single organization, IdP, business timezone, availability/time semantics, manager scope, and time-correction rules. Before migrating PII or documents: approve purpose, access, formats, retention, and deletion policy.
+Before completing Milestone 1: confirm single organization, production IdP, business timezone, availability/time semantics, manager scope, and time-correction rules. Before migrating PII or documents: approve purpose, access, formats, retention, and deletion policy.

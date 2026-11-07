@@ -1,0 +1,70 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 20%, #e8f0ff, var(--canvas) 52%);
+}
+.card {
+  width: min(440px, 100%);
+  padding: 40px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 18px 55px rgba(25, 40, 65, 0.12);
+}
+.mark {
+  width: 48px;
+  height: 48px;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 750;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #5d91ff, #2362e6);
+}
+.eyebrow {
+  margin: 18px 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.card h1 {
+  margin: 0;
+  font-size: 29px;
+  letter-spacing: -0.04em;
+}
+.card > p:not(.eyebrow, .error) {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.button {
+  display: block;
+  margin: 26px 0 18px;
+  padding: 13px 18px;
+  border-radius: 11px;
+  color: white;
+  background: #2e6fe9;
+  font-weight: 650;
+}
+.card small {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.error {
+  padding: 10px;
+  color: #a32635;
+  background: #fff0f2;
+  border-radius: 8px;
+  font-size: 13px;
+}
+@media (prefers-color-scheme: dark) {
+  .page {
+    background: radial-gradient(circle at 50% 20%, #1f3155, var(--canvas) 52%);
+  }
+  .error {
+    color: #ff9aa4;
+    background: #451f27;
+  }
+}

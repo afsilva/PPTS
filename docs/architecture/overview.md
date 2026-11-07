@@ -12,7 +12,7 @@ Reverse proxy / managed edge (production)
   │ request limits, TLS, rate controls
   ▼
 Next.js application ─────► OIDC identity provider
-  │                         (next milestone)
+  │                         (local Keycloak; managed IdP in production)
   ├────► PostgreSQL
   ├────► private object storage + scanner (future)
   └────► centralized logs, metrics, alerts (production)
@@ -41,7 +41,7 @@ A module owns its domain rules and exposes narrow service functions. Database ac
 
 ## Deployment
 
-The local stack contains a production-built app, one-shot migration job, and PostgreSQL on an internal network. The app runs as an unprivileged user with a read-only filesystem, dropped capabilities, and loopback-only port binding.
+The local stack contains a production-built app, an application PostgreSQL database and one-shot migration job, plus Keycloak, a separate Keycloak PostgreSQL database, and a one-shot realm reconciliation job. Database networks are internal; browser-facing app and identity ports bind only to loopback. The app runs as an unprivileged user with a read-only filesystem and dropped capabilities.
 
 Production will use managed TLS, PostgreSQL, OIDC, secret storage, backups, and centralized telemetry. Local Compose demonstrates operability, not production resilience.
 

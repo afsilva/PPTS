@@ -1,0 +1,193 @@
+#!/bin/sh
+# End-to-end verification of the local OIDC stack. Requires a running stack
+# (make start / make restart) and a protected external environment file.
+# Exercises the browser-facing flows with curl cookie jars: redirect
+# enforcement, Keycloak login, callback, session API shape, CSRF-guarded
+# logout, SSO-session termination, inactive users, and audit persistence.
+# No generated credential is printed.
+set -u
+
+case "$(uname -s)" in
+  Darwin) root="${HOME}/Library/Application Support/PPTS" ;;
+  Linux) root="${XDG_STATE_HOME:-${HOME}/.local/state}/ppts" ;;
+  *) root="${HOME}/.ppts" ;;
+esac
+ENV_FILE=${ENV_FILE:-${RUNTIME_DIR:-$root}/environment}
+PODMAN=${PODMAN:-podman}
+
+[ -f "$ENV_FILE" ] || { echo "No environment file at $ENV_FILE; run make start first." >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 1; }
+
+set -a
+. "$ENV_FILE"
+set +a
+
+# One canonical hostname for the whole flow so the cookie jar stays valid
+# across the application and Keycloak hops (cookies are host-scoped).
+APP=http://localhost:${PPTS_PORT:-3000}
+KC=http://localhost:${KEYCLOAK_PORT:-8080}
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT INT TERM
+
+pass=0
+fail=0
+ok() { pass=$((pass + 1)); printf 'ok   - %s\n' "$1"; }
+bad() { fail=$((fail + 1)); printf 'FAIL - %s\n' "$1"; }
+check() { # check <description> <0 for pass, nonzero for fail>
+  if [ "$2" = 0 ]; then ok "$1"; else bad "$1"; fi
+}
+
+# begin_login <jar> -> echoes the Keycloak authorization URL
+begin_login() {
+  curl -s -c "$1" -b "$1" -o "$WORK/begin.html" -w '%{redirect_url}' "$APP/auth/login"
+}
+
+# perform_login <jar> <username> <password> -> echoes "<final_url> <http_code>"
+perform_login() {
+  jar=$1; user=$2; password=$3
+  auth_url=$(begin_login "$jar")
+  case "$auth_url" in
+    "$KC"*) ;;
+    *) printf '%s 000' "$auth_url"; return ;;
+  esac
+  form=$(curl -s -c "$jar" -b "$jar" "$auth_url")
+  case "$form" in
+    *'<input'*) ;;
+    *) printf '%s 403' "$auth_url"; return ;;
+  esac
+  action=$(printf '%s' "$form" | sed -n 's/.*<form[^>]*action="\([^"]*\)".*/\1/p' | head -n 1 | sed 's/&amp;/\&/g')
+  case "$action" in
+    http*) target="$action" ;;
+    /*) target="$KC$action" ;;
+    *) target="$KC/realms/ppts/login" ;;
+  esac
+  data="username=$(printf '%s' "$user" | sed 's/ /%20/g')&password=$password"
+  hidden=$(printf '%s' "$form" | grep -o '<input type="hidden" name="[^"]*" value="[^"]*"' | sed 's/.*name="\([^"]*\)" value="\([^"]*\)".*/\1=\2/' | paste -sd '&' -)
+  [ -n "$hidden" ] && data="$data&$hidden"
+  # --data selects POST for the Keycloak form, while curl correctly follows
+  # Keycloak's 302 redirect to the application's GET-only callback as GET.
+  # An explicit `-X POST` would incorrectly preserve POST across redirects.
+  curl -s -L -c "$jar" -b "$jar" -o "$WORK/final.html" \
+    -w '%{url_effective} %{http_code}' \
+    --data "$data" "$target"
+}
+
+# --- 1. Unauthenticated behavior --------------------------------------------
+code=$(curl -s -o /dev/null -w '%{http_code}' "$APP/api/health/live")
+check "health endpoint is live" $([ "$code" = 200 ]; echo $?)
+body=$(curl -s -o /dev/null -w '%{redirect_url}' "$APP/")
+check "root redirects unauthenticated users to login" $(printf '%s' "$body" | grep -q "$APP/login"; echo $?)
+code=$(curl -s -o "$WORK/s.json" -w '%{http_code}' "$APP/api/auth/session")
+check "session endpoint answers 401 without a session" $([ "$code" = 401 ]; echo $?)
+# Deliberately exercise the callback's sanitized failure audit path without
+# sending an authorization code, token, credential, or provider response.
+callback_location=$(curl -s -o /dev/null -w '%{redirect_url}' "$APP/auth/callback?state=invalid")
+check "invalid callback fails closed" $(printf '%s' "$callback_location" | grep -q "$APP/login?error=invalid_callback"; echo $?)
+
+# --- 2. Administrator login --------------------------------------------------
+JAR_A="$WORK/jar-alex.txt"; rm -f "$JAR_A"
+result=$(perform_login "$JAR_A" "alex.admin" "${KEYCLOAK_ALEX_PASSWORD}")
+final_url=$(printf '%s' "$result" | awk '{print $1}')
+final_code=$(printf '%s' "$result" | awk '{print $2}')
+check "admin login lands on the dashboard" $(printf '%s' "$final_url" | grep -q "$APP/"; echo $?)
+check "admin login returns 200" $([ "$final_code" = 200 ]; echo $?)
+curl -s -b "$JAR_A" "$APP/" | grep -q "Alex Morgan"
+check "dashboard shows the authenticated administrator name" $?
+code=$(curl -s -o "$WORK/s.json" -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
+check "session endpoint is 200 with a session" $([ "$code" = 200 ]; echo $?)
+grep -q '"authenticated":true' "$WORK/s.json"
+check "session endpoint reports authenticated" $?
+grep -q '"displayName":"Alex Morgan"' "$WORK/s.json"
+check "session endpoint returns the display name" $?
+if grep -q '"id"' "$WORK/s.json" || grep -q '"roles"' "$WORK/s.json" || grep -q '"username"' "$WORK/s.json"; then
+  check "session endpoint omits internal identifiers and roles" 1
+else
+  check "session endpoint omits internal identifiers and roles" 0
+fi
+
+# --- 3. Logout: CSRF guard, session revocation, SSO termination --------------
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" -X POST -H "Origin: http://evil.example" "$APP/auth/logout")
+check "logout rejects a foreign Origin (CSRF guard)" $([ "$code" = 403 ]; echo $?)
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
+check "session is still valid before logout" $([ "$code" = 200 ]; echo $?)
+# --data '' initiates POST but permits the app's 303 to switch to GET for
+# Keycloak's RP-initiated logout endpoint, matching browser behavior.
+curl -s -L -c "$JAR_A" -b "$JAR_A" -o /dev/null -w '%{http_code}' --data '' -H "Origin: $APP" "$APP/auth/logout" > "$WORK/logout-code"
+check "logout succeeds with the app Origin" $([ "$(cat "$WORK/logout-code")" = "200" ]; echo $?)
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
+check "session is revoked after logout" $([ "$code" = 401 ]; echo $?)
+
+# After an RP-initiated logout the Keycloak SSO session must be gone, so
+# re-authenticating must present the login form rather than auto-login.
+auth_url=$(begin_login "$JAR_A")
+curl -s -L -c "$JAR_A" -b "$JAR_A" -o "$WORK/sso.html" -w '%{url_effective}' "$auth_url" > "$WORK/sso-url"
+sso_url=$(cat "$WORK/sso-url")
+if printf '%s' "$sso_url" | grep -q "$APP"; then
+  check "Keycloak SSO session terminated by logout" 1
+elif grep -q '<input' "$WORK/sso.html"; then
+  check "Keycloak SSO session terminated by logout" 0
+else
+  check "Keycloak SSO session terminated by logout" 1
+fi
+
+# --- 4. Employee login --------------------------------------------------------
+JAR_B="$WORK/jar-casey.txt"; rm -f "$JAR_B"
+result=$(perform_login "$JAR_B" "casey.employee" "${KEYCLOAK_CASEY_PASSWORD}")
+final_url=$(printf '%s' "$result" | awk '{print $1}')
+final_code=$(printf '%s' "$result" | awk '{print $2}')
+check "employee login lands on the dashboard" $(printf '%s' "$final_url" | grep -q "$APP/"; echo $?)
+check "employee login returns 200" $([ "$final_code" = 200 ]; echo $?)
+curl -s -b "$JAR_B" "$APP/api/auth/session" | grep -q '"displayName":"Casey Lee"'
+check "employee session reports the employee identity" $?
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" -X POST -H "Origin: $APP" "$APP/auth/logout")
+check "employee logout succeeds" $([ "$code" = "303" -o "$code" = "200" ]; echo $?)
+
+# --- 5. Inactive users are denied ----------------------------------------------
+KEYCLOAK_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E 'keycloak-[0-9]+$' || true)
+if [ -n "$KEYCLOAK_CONTAINER" ]; then
+  KC_CONFIG=/tmp/ppts-e2e-kcadm.config
+  "$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh config credentials \
+    --config "$KC_CONFIG" --server http://127.0.0.1:8080 --realm master \
+    --user local-admin --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null 2>&1
+  uid=$("$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh get users \
+    --config "$KC_CONFIG" -r ppts -q username=casey.employee --fields id \
+    --format csv --noquotes 2>/dev/null | sed -n '1p')
+  if [ -n "$uid" ]; then
+    "$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh update "users/$uid" \
+      --config "$KC_CONFIG" -r ppts -s enabled=false >/dev/null 2>&1
+    JAR_C="$WORK/jar-inactive.txt"; rm -f "$JAR_C"
+    perform_login "$JAR_C" "casey.employee" "${KEYCLOAK_CASEY_PASSWORD}" > /dev/null
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_C" "$APP/api/auth/session")
+    check "disabled user cannot establish a session" $([ "$code" = 401 ]; echo $?)
+    "$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh update "users/$uid" \
+      --config "$KC_CONFIG" -r ppts -s enabled=true >/dev/null 2>&1
+  else
+    bad "could not resolve casey.employee for the inactive-user test"
+  fi
+else
+  bad "keycloak container not found for the inactive-user test"
+fi
+
+# --- 6. Audit trail --------------------------------------------------------------
+DB_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E '(^|/)ppts-db-[0-9]+$' || true)
+if [ -n "$DB_CONTAINER" ]; then
+  rows=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT action || '"'"':'"'"' || COUNT(*) FROM "AuditEvent" GROUP BY action ORDER BY action' 2>/dev/null)
+  case "$rows" in
+    *AUTH_LOGIN:*) check "successful logins were audited" 0 ;;
+    *) check "successful logins were audited" 1 ;;
+  esac
+  case "$rows" in
+    *AUTH_LOGOUT:*) check "logout was audited" 0 ;;
+    *) check "logout was audited" 1 ;;
+  esac
+  case "$rows" in
+    *AUTH_LOGIN_FAILED:*) check "failed authentication attempts were audited" 0 ;;
+    *) check "failed authentication attempts were audited" 1 ;;
+  esac
+else
+  bad "db container not found for the audit check"
+fi
+
+printf '\nE2E: %s passed, %s failed\n' "$pass" "$fail"
+[ "$fail" = 0 ] || exit 1
+echo "All E2E checks passed."

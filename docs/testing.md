@@ -8,7 +8,8 @@
 
 - **Unit:** pure domain state transitions, policy decisions, validation, duration/timezone logic.
 - **Integration:** real PostgreSQL transactions, constraints, concurrent clock requests, audit writes, migrations from empty DB.
-- **E2E:** OIDC login/logout, employee clock flow, admin scoped reads, CSRF/origin rejection, production-safe errors.
+- **Current E2E:** OIDC administrator/employee login, session-response minimization, logout Origin rejection, application revocation, provider SSO termination, disabled-user denial, and authentication-audit persistence.
+- **Vertical-slice E2E still required:** employee clock flow, administrator scoped reads, and positive/negative resource authorization.
 - **Security:** every authorization capability has allow and deny cases; SAST/SCA/secrets, DAST on staging, header/CSP checks.
 - **Accessibility:** automated checks plus keyboard, screen reader, 200% zoom, 320 CSS-pixel reflow, contrast, forced colors, and reduced motion.
 - **Operations:** production container health, backup/restore into clean PostgreSQL, migration failure/rollback procedure.

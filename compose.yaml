@@ -1,56 +1,162 @@
 name: ppts
 
+# Image digests are the reviewed multi-architecture manifest indexes for the
+# exact version tags, so builds stay reproducible and pull from either
+# architecture. Keycloak is pinned the same way (quay.io list digest).
 services:
   db:
-    image: postgres:18.3-bookworm
+    image: docker.io/library/postgres:18.3-bookworm@sha256:80630f83606d8db77d30b3851b16a9f78be2d0d4dda6f7b82a1fdca5ebe3acba
     restart: unless-stopped
     environment:
       POSTGRES_DB: ppts
       POSTGRES_USER: ppts
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
-    volumes:
-      - ppts-db:/var/lib/postgresql
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes: ["ppts-db:/var/lib/postgresql"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ppts -d ppts"]
       interval: 5s
       timeout: 3s
       retries: 10
-    networks: [backend]
+    networks: [data]
+    cap_drop: ["ALL"]
+    # The official PostgreSQL entrypoint starts as root only long enough to
+    # prepare the named volume/socket directory, then drops to `postgres`.
+    # These are the minimum capabilities needed for that initialization.
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
     security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    pids_limit: 256
+    cpus: 1.0
 
-  migrate:
-    build:
-      context: .
-      target: builder
-    command: ["npx", "prisma", "migrate", "deploy"]
-    environment:
-      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:-local-development-only}@db:5432/ppts
-    depends_on:
-      db:
-        condition: service_healthy
-    networks: [backend]
-    restart: "no"
-    security_opt: ["no-new-privileges:true"]
-
-  app:
-    build:
-      context: .
-      target: runner
+  keycloak-db:
+    image: docker.io/library/postgres:18.3-bookworm@sha256:80630f83606d8db77d30b3851b16a9f78be2d0d4dda6f7b82a1fdca5ebe3acba
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:-local-development-only}@db:5432/ppts
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+    volumes: ["ppts-keycloak-db:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [identity-data]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    pids_limit: 256
+    cpus: 1.0
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./keycloak/ppts-realm.json:/opt/keycloak/data/import/ppts-realm.json:ro
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # `start-dev` performs Quarkus augmentation under /opt/keycloak/lib at
+    # startup, so this upstream image cannot use a read-only root filesystem.
+    # It still runs as Keycloak's non-root user with no capabilities, no-new-
+    # privileges, isolated networks, no host filesystem writes, and limits.
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks: [identity, identity-data]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1536m
+    pids_limit: 512
+    cpus: 2.0
+
+  keycloak-bootstrap:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+    entrypoint: ["/bin/sh", "/bootstrap/reconcile-realm.sh"]
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: local-admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KEYCLOAK_ALEX_PASSWORD: ${KEYCLOAK_ALEX_PASSWORD:?KEYCLOAK_ALEX_PASSWORD is required}
+      KEYCLOAK_CASEY_PASSWORD: ${KEYCLOAK_CASEY_PASSWORD:?KEYCLOAK_CASEY_PASSWORD is required}
+      PPTS_PORT: ${PPTS_PORT:-3000}
+    volumes:
+      - ./keycloak/reconcile-realm.sh:/bootstrap/reconcile-realm.sh:ro
+    depends_on:
+      keycloak: { condition: service_healthy }
+    networks: [identity]
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /opt/keycloak/.keycloak:size=1m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 128
+    cpus: 0.5
+
+  migrate:
+    build: { context: ., target: builder }
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/ppts
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [data]
+    restart: "no"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 128
+    cpus: 1.0
+
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/ppts
+      APP_ORIGIN: http://localhost:${PPTS_PORT:-3000}
+      OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/ppts
+      OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/ppts
+      OIDC_CLIENT_ID: ppts-local
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     ports:
       - "127.0.0.1:${PPTS_PORT:-3000}:3000"
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      migrate: { condition: service_completed_successfully }
+      keycloak-bootstrap: { condition: service_completed_successfully }
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
       - /app/.next/cache:size=64m,mode=0777
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
-    networks: [backend]
+    networks: [data, identity]
+    mem_limit: 512m
+    pids_limit: 256
+    cpus: 1.0
     healthcheck:
       test:
         [
@@ -63,9 +169,19 @@ services:
       timeout: 3s
       retries: 10
 
+# Trust-boundary segmentation:
+# - data: internal only; PPTS application database + app + migrator.
+# - identity-data: internal only; Keycloak database + Keycloak.
+# - identity: routed (browser-facing Keycloak on 127.0.0.1) shared by app and
+#   Keycloak for token/JWKS/health calls. Databases are unreachable from the
+#   routed network, so a published port cannot expose a database.
 networks:
-  backend:
+  data:
     internal: true
+  identity-data:
+    internal: true
+  identity:
 
 volumes:
   ppts-db:
+  ppts-keycloak-db:
