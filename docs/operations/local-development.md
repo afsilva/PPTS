@@ -1,29 +1,75 @@
 # Local development and deployment
 
-## Container path
+## Podman path
+
+Requirements:
+
+- macOS or Linux on ARM64/AArch64 or x86-64/AMD64
+- GNU Make or BSD Make
+- A current Podman release with `podman compose`
+- `curl` for the post-start health check
+
+The Node and PostgreSQL base images are multi-architecture OCI images. No platform is forced in Compose, so Podman selects the native Linux ARM64 or AMD64 image for the Podman machine/host. Do not add `platform:` unless intentionally testing cross-architecture emulation.
+
+### First start
 
 ```bash
 cp .env.example .env.local
-# Set a random local POSTGRES_PASSWORD.
-docker compose --env-file .env.local up --build
-curl --fail http://localhost:3000/api/health/live
+# Replace POSTGRES_PASSWORD with a random local value.
+make start
 ```
 
-The app is available only on loopback. PostgreSQL has no host-published port. Migrations run as a one-shot service before the app starts. Compose data persists in `ppts-db`.
+On macOS, the lifecycle script detects whether a Podman machine exists and starts or creates it when necessary. On Linux, Podman runs natively and no machine command is used.
 
-Useful commands:
+The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service before the app starts. Database data persists in the named `ppts-db` volume.
+
+### Lifecycle commands
 
 ```bash
-docker compose --env-file .env.local logs -f app
-docker compose --env-file .env.local ps
-docker compose --env-file .env.local down
-docker compose --env-file .env.local down --volumes  # destructive reset
+make start     # build, migrate, start, and wait for health
+make restart   # rebuild/restart while preserving database data
+make stop      # stop containers while preserving database data
+make clean     # remove containers, local images, and database volume
+make status    # show service status
+make logs      # follow application logs
+make config    # render and validate Compose configuration
+make help
 ```
 
-To seed after persistence is wired into the UI:
+`make clean` permanently deletes the local database volume. It does not delete `.env.local` or source files.
+
+### Overrides
+
+Make variables can select another environment file, port, Podman binary, or Compose file:
 
 ```bash
-docker compose --env-file .env.local run --rm migrate npm run db:seed
+make start PPTS_PORT=3001
+make start ENV_FILE=.env.test
+make config PODMAN=/usr/local/bin/podman
+```
+
+Values in `ENV_FILE` are passed to Compose. If `PPTS_PORT` exists in that file, it controls the published port and health-check URL. The default is `3000`.
+
+The first invocation creates `.env.local` from `.env.example` if absent and stops so that the password can be reviewed. Placeholder passwords are rejected.
+
+### Direct Podman access
+
+The Make targets are thin wrappers around this portable script:
+
+```bash
+./scripts/containers.sh start
+```
+
+For advanced troubleshooting, the equivalent Compose prefix is:
+
+```bash
+podman compose --env-file .env.local -f compose.yaml
+```
+
+For example:
+
+```bash
+podman compose --env-file .env.local -f compose.yaml logs -f app
 ```
 
 ## Native development path
@@ -40,11 +86,14 @@ npm run dev
 
 ## Troubleshooting
 
-- Port conflict: set `PPTS_PORT=3001` in `.env.local`.
-- Migration failure: inspect `docker compose logs db migrate`; do not edit an already applied migration.
-- Full reset: `docker compose --env-file .env.local down --volumes`, then start again.
-- Build problems: confirm Node 24+ and run `npm ci`, not an unpinned global install.
+- **Podman unavailable on macOS:** run `podman machine list`; `make start` normally starts an existing machine automatically.
+- **Compose unavailable:** upgrade Podman or install/configure its Compose provider, then verify `podman compose version`.
+- **Port conflict:** use `make start PPTS_PORT=3001` or set `PPTS_PORT=3001` in `.env.local`.
+- **Migration failure:** inspect `podman compose --env-file .env.local logs db migrate`; never edit an already applied migration.
+- **Complete reset:** run `make clean`, then `make start`.
+- **Build problems:** run `podman info`, ensure sufficient Podman machine disk/memory, and inspect `make logs`.
+- **Architecture diagnostics:** run `uname -m` and `podman info --format '{{.Host.Arch}}'`. Supported values normalize to ARM64/AArch64 or x86-64/AMD64.
 
 ## Security boundaries
 
-Local HTTP is acceptable only on loopback for synthetic data. Do not expose this stack to a LAN or internet. Do not reuse the local password. Production requires TLS, a supported external IdP with MFA, managed secrets, least-privilege DB roles, durable backups, centralized observability, rate limiting, and incident procedures.
+Local HTTP is acceptable only on loopback for synthetic data. Do not expose this stack to a LAN or the internet. Do not reuse the local password. Production requires TLS, a supported external IdP with MFA, managed secrets, least-privilege database roles, durable backups, centralized observability, rate limiting, and incident procedures.

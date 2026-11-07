@@ -14,29 +14,27 @@ A secure, modern successor to the original **People & Projects Tracking System**
 
 ## Quick start
 
-### Container deployment (recommended)
+### Podman deployment (recommended)
 
-Requirements: Git and Docker with Compose.
+Requirements: Git, GNU/BSD Make, and a current Podman release with Compose support. The same commands work on macOS and Linux, and use native OCI images on Apple Silicon/ARM64 and Intel/AMD64.
 
 ```bash
 cp .env.example .env.local
-# Change POSTGRES_PASSWORD in .env.local, then:
-docker compose --env-file .env.local up --build
+# Replace POSTGRES_PASSWORD in .env.local, then:
+make start
 ```
 
-Open <http://localhost:3000>. The database is internal-only; only the application binds to `127.0.0.1`.
-
-Stop while preserving data:
+On macOS, `make start` creates or starts the Podman machine when needed. Open <http://localhost:3000>. The database is internal-only; only the application binds to `127.0.0.1`.
 
 ```bash
-docker compose --env-file .env.local down
+make restart  # rebuild and restart, preserving data
+make stop     # stop containers, preserving data
+make clean    # remove containers, built images, and database volume
+make status
+make logs
 ```
 
-Reset all local data:
-
-```bash
-docker compose --env-file .env.local down --volumes
-```
+`make clean` is intentionally destructive. See [local operations](docs/operations/local-development.md) for environment and port overrides.
 
 ### Native development
 
