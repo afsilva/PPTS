@@ -6,7 +6,7 @@ Every change must:
 
 1. Preserve deny-by-default authorization and validate untrusted input server-side.
 2. Include positive and negative tests appropriate to the change.
-3. Pass `npm run verify` and applicable integration/E2E checks.
+3. Pass `npm run verify` and applicable integration/E2E checks; dependency updates must also pass the 72-hour age, zero-vulnerability, and no-deprecation policy.
 4. Include a migration for schema changes; never edit an applied migration.
 5. Update affected docs, ADRs, threat model, authorization matrix, runbooks, and `.env.example` in the same pull request.
 6. Avoid secrets, tokens, production data, or identifiable legacy records.

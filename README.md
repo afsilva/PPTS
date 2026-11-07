@@ -55,12 +55,13 @@ npm run dev
 ## Quality commands
 
 ```bash
+npm run supply-chain  # rejects packages published less than 72 hours ago or deprecated
+npm run audit         # rejects any known vulnerability, including development tools
 npm run format:check
 npm run lint
 npm run typecheck
 npm run build
 npm run verify
-npm audit --audit-level=high
 ```
 
 Health endpoints:
@@ -94,6 +95,7 @@ A change is not complete until affected documentation, architecture decisions, t
 - [Modernization proposal](MODERNIZATION_PROPOSAL.md)
 - [Architecture](docs/architecture/overview.md)
 - [Security model](docs/security/threat-model.md)
+- [Dependency and supply-chain policy](docs/security/dependency-policy.md)
 - [Local operations](docs/operations/local-development.md)
 - [Roadmap](docs/ROADMAP.md)
 

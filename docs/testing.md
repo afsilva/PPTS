@@ -2,7 +2,7 @@
 
 ## Required gates
 
-`npm run verify` checks formatting, lint, type safety, Prisma generation, production build, and production-dependency audit. CI also scans all dependencies and uploads build artifacts as capabilities mature.
+`npm run verify` enforces the 72-hour package-age/no-deprecation/no-non-registry-source policy, rejects every known vulnerability across production and development dependencies, and checks formatting, lint, type safety, Prisma generation, and the production build. CI runs the supply-chain and audit gates before executing package lifecycle/build code.
 
 ## Test layers
 

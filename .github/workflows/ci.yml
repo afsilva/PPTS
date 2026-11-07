@@ -18,9 +18,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run verify
-      - name: Audit all dependencies
-        run: npm audit --audit-level=high
+      - name: Set fixed supply-chain policy time
+        run: echo "POLICY_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+      - name: Enforce package cooling-off and deprecation policy before install
+        run: node scripts/check-npm-supply-chain.mjs
+      - name: Extract dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Reject every known dependency vulnerability
+        run: npm audit --audit-level=low
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
       - name: Build hardened container
         run: docker build --target runner -t ppts:${{ github.sha }} .

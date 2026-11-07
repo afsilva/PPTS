@@ -25,7 +25,8 @@ Expect acknowledgment within three business days. Do not test against systems or
 - CSRF/origin controls on mutations
 - Private document storage and scanning when documents are introduced
 - Structured, redacted security audit logs and operational alerting
-- Pinned dependencies, automated updates, SAST/SCA/secret scanning, SBOMs, and signed releases as the delivery pipeline matures
+- Exact-pinned dependencies, a 72-hour publication cooling-off gate, zero-known-vulnerability/deprecation policy, automated updates, and SAST/SCA/secret scanning
+- SBOMs and signed release provenance as the delivery pipeline matures
 
 See [the threat model](docs/security/threat-model.md) and [authorization matrix](docs/security/authorization-matrix.md).
 
