@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { readSession } from "@/auth/session";
 import type { Actor } from "@/modules/authorization/policy";
 import { getProjectDetail, getProjectEditorOptions } from "@/modules/projects/service";
 import { MutationForm, SubmitButton } from "@/app/components/submit-button";
+import { MutationNotice } from "@/app/components/mutation-notice";
 import styles from "../../page.module.css";
 
 export default async function ProjectPage({
@@ -26,7 +28,7 @@ export default async function ProjectPage({
   } catch {
     notFound();
   }
-  const { project, canManage } = detail;
+  const { project, documents, canWriteDocuments, canManage } = detail;
   const options = canManage ? await getProjectEditorOptions(actor, id) : null;
   const result = (await searchParams).result;
   return (
@@ -37,17 +39,19 @@ export default async function ProjectPage({
       </h1>
       <p>{project.description || "No project description."}</p>
       {result && (
-        <p
-          className={result === "saved" ? styles.notice : styles.errorNotice}
-          role="status"
-          aria-live="polite"
-        >
+        <MutationNotice className={result === "saved" ? styles.notice : styles.errorNotice}>
           {result === "saved"
-            ? "Your change was saved."
+            ? "Your change was saved. Documents remain unavailable until scanning succeeds."
             : result === "stale"
               ? "This project changed. Reload and try again."
-              : "The change could not be saved."}
-        </p>
+              : result === "unsupported-document"
+                ? "That document format or file structure is not allowed."
+                : result === "document-quota"
+                  ? "This project has reached its document quota."
+                  : result === "retention-active"
+                    ? "That document is still under retention and cannot be deleted."
+                    : "The change could not be saved."}
+        </MutationNotice>
       )}
       <section className={styles.managementCard}>
         <h2>Project details</h2>
@@ -232,7 +236,10 @@ export default async function ProjectPage({
                 <small>{member.role.toLowerCase()}</small>
               </span>
               {canManage && member.userId !== actor.userId && (
-                <MutationForm action="/api/projects/members/remove" method="post">
+                <MutationForm
+                  action={`/api/projects/members/remove?returnTo=/projects/${project.id}`}
+                  method="post"
+                >
                   <input type="hidden" name="projectId" value={project.id} />
                   <input type="hidden" name="userId" value={member.userId} />
                   <SubmitButton
@@ -250,8 +257,75 @@ export default async function ProjectPage({
         </div>
       </section>
       <section className={styles.managementCard}>
+        <h2>Project documents</h2>
+        <p>
+          Files are private, validated, quarantined, and unavailable until malware scanning
+          succeeds. Accepted formats: PDF, text, PNG, and JPEG.
+        </p>
+        {canWriteDocuments && (
+          <MutationForm
+            action={`/api/projects/${project.id}/documents`}
+            method="post"
+            encType="multipart/form-data"
+            className={styles.documentForm}
+          >
+            <input type="hidden" name="submissionId" value={randomUUID()} />
+            <label>
+              Document
+              <input name="document" type="file" accept=".pdf,.txt,.png,.jpg,.jpeg" required />
+            </label>
+            <SubmitButton className={styles.primaryButton} pendingLabel="Uploading safely…">
+              Upload document
+            </SubmitButton>
+          </MutationForm>
+        )}
+        <div className={styles.documentList}>
+          {documents.map((document) => (
+            <div key={document.id}>
+              <span>
+                <strong>{document.originalName}</strong>
+                <small>
+                  {document.uploadedBy.displayName} ·{" "}
+                  {document.status.toLowerCase().replaceAll("_", " ")}
+                  {document.sizeBytes ? ` · ${formatBytes(document.sizeBytes)}` : ""}
+                </small>
+              </span>
+              <span className={styles.documentActions}>
+                {document.status === "AVAILABLE" && (
+                  <a href={`/api/projects/${project.id}/documents/${document.id}/download`}>
+                    Download
+                  </a>
+                )}
+                {canWriteDocuments && (
+                  <MutationForm
+                    action={`/api/projects/${project.id}/documents/${document.id}/delete`}
+                    method="post"
+                  >
+                    <input type="hidden" name="projectId" value={project.id} />
+                    <input type="hidden" name="documentId" value={document.id} />
+                    <input type="hidden" name="version" value={document.version} />
+                    <SubmitButton
+                      className={styles.dangerButton}
+                      pendingLabel="Deleting…"
+                      confirmMessage={`Delete ${document.originalName}?`}
+                    >
+                      Delete
+                    </SubmitButton>
+                  </MutationForm>
+                )}
+              </span>
+            </div>
+          ))}
+          {!documents.length && <p>No project documents.</p>}
+        </div>
+      </section>
+      <section className={styles.managementCard}>
         <h2>Project journal</h2>
-        <MutationForm action="/api/projects/logs" method="post" className={styles.journalForm}>
+        <MutationForm
+          action={`/api/projects/logs?returnTo=/projects/${project.id}`}
+          method="post"
+          className={styles.journalForm}
+        >
           <input type="hidden" name="projectId" value={project.id} />
           <label>
             New entry
@@ -275,6 +349,13 @@ export default async function ProjectPage({
     </main>
   );
 }
+function formatBytes(value: bigint) {
+  const bytes = Number(value);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
 function Estimate({ name, label, value }: { name: string; label: string; value: number | null }) {
   return (
     <label>

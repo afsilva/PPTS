@@ -9,5 +9,8 @@ export async function POST(request: Request) {
     "PROJECT_UPDATED",
     updateProject,
     (input) => `/projects/${input.id}`,
+    "Catalog",
+    "saved",
+    "/catalog",
   );
 }

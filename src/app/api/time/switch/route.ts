@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const input = switchSchema.parse(await readBoundedForm(request));
     await switchWork(authorization.actor, input);
-    return mutationResult(request);
+    return mutationResult(request, undefined, "/", "switched");
   } catch (error) {
     await auditMutationFailure(authorization.actor, "TIME_SWITCH", error);
     return mutationResult(request, error);

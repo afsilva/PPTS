@@ -1,17 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseUtcMinute,
+  parseUtcTimestamp,
   validCorrectionInterval,
 } from "../../src/modules/time-tracking/corrections";
 import { timeCorrectionSchema } from "../../src/modules/time-tracking/schemas";
 
 const id = "00000000-0000-4000-8000-000000000001";
 
-test("UTC minute parser accepts exact real calendar values", () => {
-  assert.equal(parseUtcMinute("2026-11-08T02:15").toISOString(), "2026-11-08T02:15:00.000Z");
-  assert.throws(() => parseUtcMinute("2026-02-30T02:15"), /invalid_interval/);
-  assert.throws(() => parseUtcMinute("2026-11-08 02:15"), /invalid_interval/);
+test("UTC timestamp parser preserves seconds and milliseconds", () => {
+  assert.equal(
+    parseUtcTimestamp("2026-11-08T02:15:42.731").toISOString(),
+    "2026-11-08T02:15:42.731Z",
+  );
+  assert.equal(parseUtcTimestamp("2026-11-08T02:15:42").toISOString(), "2026-11-08T02:15:42.000Z");
+  assert.throws(() => parseUtcTimestamp("2026-02-30T02:15:00"), /invalid_interval/);
+  assert.throws(() => parseUtcTimestamp("2026-11-08 02:15:00"), /invalid_interval/);
 });
 
 test("correction interval must be positive, completed, and at most 31 days", () => {
@@ -54,8 +58,8 @@ test("correction schema bounds note and requires version", () => {
   const parsed = timeCorrectionSchema.parse({
     id,
     version: "2",
-    startedAt: "2026-11-08T09:00",
-    endedAt: "2026-11-08T10:00",
+    startedAt: "2026-11-08T09:00:42.731",
+    endedAt: "2026-11-08T10:00:03.112",
     note: " corrected ",
   });
   assert.equal(parsed.version, 2);
@@ -67,9 +71,9 @@ test("correction schema bounds note and requires version", () => {
     timeCorrectionSchema.parse({
       id,
       version: 1,
-      startedAt: "2026-11-08T09:00",
-      endedAt: "2026-11-08T10:00",
-      note: "x".repeat(2001),
+      startedAt: "2026-11-08T09:00:00.000",
+      endedAt: "2026-11-08T10:00:00.000",
+      note: "x".repeat(1001),
     }),
   );
 });

@@ -11,6 +11,9 @@ export type AuthorizationRequest =
   | { capability: "MANAGE_PEOPLE_AND_ROLES" }
   | { capability: "READ_PROJECT"; scoped: boolean }
   | { capability: "WRITE_PROJECT_LOG"; scoped: boolean }
+  | { capability: "READ_PROJECT_DOCUMENT"; scoped: boolean }
+  | { capability: "WRITE_PROJECT_DOCUMENT"; scoped: boolean }
+  | { capability: "DELETE_PROJECT_DOCUMENT"; scoped: boolean }
   | { capability: "READ_REPORTS"; scoped: boolean }
   | { capability: "CORRECT_TIME"; targetUserId: string; scoped: boolean }
   | { capability: "READ_AUDIT"; scoped: boolean };
@@ -40,6 +43,11 @@ export function can(actor: Actor, request: AuthorizationRequest): boolean {
     case "READ_PROJECT":
       return has(actor, "ADMINISTRATOR") || request.scoped;
     case "WRITE_PROJECT_LOG":
+      return !has(actor, "AUDITOR") && (has(actor, "ADMINISTRATOR") || request.scoped);
+    case "READ_PROJECT_DOCUMENT":
+      return has(actor, "ADMINISTRATOR") || request.scoped;
+    case "WRITE_PROJECT_DOCUMENT":
+    case "DELETE_PROJECT_DOCUMENT":
       return !has(actor, "AUDITOR") && (has(actor, "ADMINISTRATOR") || request.scoped);
     case "READ_REPORTS":
       return (

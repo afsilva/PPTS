@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readSession } from "@/auth/session";
 import { MutationForm, SubmitButton } from "@/app/components/submit-button";
+import { MutationNotice } from "@/app/components/mutation-notice";
 import type { Actor } from "@/modules/authorization/policy";
 import { getCatalog } from "@/modules/catalog/service";
 import styles from "../page.module.css";
@@ -29,17 +30,21 @@ export default async function CatalogPage({
         or deactivated.
       </p>
       {result && (
-        <p className={result === "saved" ? styles.notice : styles.errorNotice} role="status">
+        <MutationNotice className={result === "saved" ? styles.notice : styles.errorNotice}>
           {result === "saved"
             ? "Your change was saved."
             : result === "stale"
               ? "This record changed. Reload and try again."
               : "The change could not be saved."}
-        </p>
+        </MutationNotice>
       )}
       <section className={styles.managementCard}>
         <h2>Clients</h2>
-        <MutationForm action="/api/catalog/clients" method="post" className={styles.compactCreate}>
+        <MutationForm
+          action="/api/catalog/clients?returnTo=/catalog"
+          method="post"
+          className={styles.compactCreate}
+        >
           <label>
             New client
             <input name="name" maxLength={120} required />
@@ -66,7 +71,7 @@ export default async function CatalogPage({
               {!x.archivedAt && <SubmitButton pendingLabel="Saving…">Save</SubmitButton>}
             </MutationForm>
             {!x.archivedAt && (
-              <MutationForm action="/api/catalog/archive" method="post">
+              <MutationForm action="/api/catalog/archive?returnTo=/catalog" method="post">
                 <input type="hidden" name="entity" value="client" />
                 <input type="hidden" name="id" value={x.id} />
                 <SubmitButton
@@ -83,7 +88,11 @@ export default async function CatalogPage({
       </section>
       <section className={styles.managementCard}>
         <h2>Project statuses</h2>
-        <MutationForm action="/api/catalog/statuses" method="post" className={styles.compactCreate}>
+        <MutationForm
+          action="/api/catalog/statuses?returnTo=/catalog"
+          method="post"
+          className={styles.compactCreate}
+        >
           <label>
             Name
             <input name="name" maxLength={120} required />
@@ -120,7 +129,7 @@ export default async function CatalogPage({
       <section className={styles.managementCard}>
         <h2>Work codes</h2>
         <MutationForm
-          action="/api/catalog/work-codes"
+          action="/api/catalog/work-codes?returnTo=/catalog"
           method="post"
           className={styles.compactCreate}
         >
@@ -151,7 +160,7 @@ export default async function CatalogPage({
               </label>
               <SubmitButton pendingLabel="Saving…">Save</SubmitButton>
             </MutationForm>
-            <MutationForm action="/api/catalog/work-codes/state" method="post">
+            <MutationForm action="/api/catalog/work-codes/state?returnTo=/catalog" method="post">
               <input type="hidden" name="id" value={x.id} />
               <input type="hidden" name="version" value={x.version} />
               <input type="hidden" name="active" value={x.active ? "false" : "true"} />

@@ -229,7 +229,7 @@ case "$command" in
     require_existing_env
     ensure_machine
     require_engine
-    notice "Removing PPTS containers, built images, and database volume"
+    notice "Removing PPTS containers, built images, database volumes, private document bytes, and scanner definitions"
     compose down --volumes --remove-orphans --rmi local
     rm -f "${RUNTIME_DIR%/}/identity-hash"
     notice "External runtime configuration is preserved at $RUNTIME_DIR; database credential rotation is now possible"

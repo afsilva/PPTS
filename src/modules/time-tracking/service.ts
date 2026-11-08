@@ -1,11 +1,12 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { getDatabase } from "@/db/client";
 import type { Actor } from "@/modules/authorization/policy";
 import { requireAllowed } from "@/modules/authorization/policy";
 import { durationSeconds, durationSince, transitionClock } from "./domain";
 import { BusinessError } from "@/modules/business/errors";
-import type { ClockSelection } from "./schemas";
+import type { ClockOutInput, ClockSelection, PresenceInput } from "./schemas";
 
 function authorizeClock(actor: Actor) {
   try {
@@ -252,6 +253,67 @@ async function lockActor(tx: Prisma.TransactionClient, userId: string) {
   await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
 }
 
+const RECEIPT_TTL_MS = 24 * 60 * 60 * 1000;
+
+type ReceiptCommand = {
+  submissionId: string;
+  action: string;
+  payload: Record<string, string>;
+};
+
+function commandFingerprint(command: ReceiptCommand) {
+  const canonical = JSON.stringify({
+    action: command.action,
+    payload: Object.fromEntries(
+      Object.entries(command.payload).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+async function replayReceipt(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  command: ReceiptCommand,
+) {
+  const receipt = await tx.clockMutationReceipt.findUnique({
+    where: { userId_submissionId: { userId, submissionId: command.submissionId } },
+  });
+  if (!receipt) return null;
+  if (receipt.expiresAt.getTime() <= Date.now()) {
+    await tx.clockMutationReceipt.delete({
+      where: { userId_submissionId: { userId, submissionId: command.submissionId } },
+    });
+    return null;
+  }
+  const fingerprint = commandFingerprint(command);
+  if (receipt.action !== command.action || receipt.fingerprint !== fingerprint)
+    throw new BusinessError("IDEMPOTENCY_CONFLICT");
+  return receipt;
+}
+
+async function saveReceipt(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  command: ReceiptCommand,
+  resourceId?: string,
+) {
+  await tx.clockMutationReceipt.create({
+    data: {
+      userId,
+      submissionId: command.submissionId,
+      action: command.action,
+      fingerprint: commandFingerprint(command),
+      resourceId,
+      expiresAt: new Date(Date.now() + RECEIPT_TTL_MS),
+    },
+  });
+}
+
+export async function purgeExpiredClockMutationReceipts(now = new Date()) {
+  return getDatabase().clockMutationReceipt.deleteMany({ where: { expiresAt: { lte: now } } });
+}
+
 function auditData(actorId: string, action: string, resourceId?: string) {
   return {
     actorId,
@@ -269,6 +331,17 @@ export async function clockIn(actor: Actor, input: ClockSelection) {
     return await getDatabase().$transaction(
       async (tx) => {
         await lockActor(tx, actor.userId);
+        const command = {
+          submissionId: input.submissionId,
+          action: "TIME_CLOCK_IN",
+          payload: {
+            projectId: input.projectId,
+            workCodeId: input.workCodeId,
+            message: input.message,
+          },
+        };
+        const replay = await replayReceipt(tx, actor.userId, command);
+        if (replay) return replay.resourceId!;
         await validateAssignment(tx, actor, input);
         const state = await currentState(tx, actor.userId);
         try {
@@ -301,6 +374,7 @@ export async function clockIn(actor: Actor, input: ClockSelection) {
           },
         });
         await tx.auditEvent.create({ data: auditData(actor.userId, "TIME_CLOCK_IN", entry.id) });
+        await saveReceipt(tx, actor.userId, command, entry.id);
         return entry.id;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -316,11 +390,18 @@ export async function clockIn(actor: Actor, input: ClockSelection) {
   }
 }
 
-export async function clockOut(actor: Actor) {
+export async function clockOut(actor: Actor, input: ClockOutInput) {
   authorizeClock(actor);
   return getDatabase().$transaction(
     async (tx) => {
       await lockActor(tx, actor.userId);
+      const command = {
+        submissionId: input.submissionId,
+        action: "TIME_CLOCK_OUT",
+        payload: {},
+      };
+      const replay = await replayReceipt(tx, actor.userId, command);
+      if (replay) return replay.resourceId!;
       const open = await tx.timeEntry.findFirst({ where: { userId: actor.userId, endedAt: null } });
       if (!open) throw new BusinessError("NOT_CLOCKED_IN");
       const endedAt = new Date(Math.max(Date.now(), open.startedAt.getTime() + 1));
@@ -335,6 +416,7 @@ export async function clockOut(actor: Actor) {
         create: { userId: actor.userId, state: "OFF_DUTY" },
       });
       await tx.auditEvent.create({ data: auditData(actor.userId, "TIME_CLOCK_OUT", open.id) });
+      await saveReceipt(tx, actor.userId, command, open.id);
       return open.id;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -346,6 +428,17 @@ export async function switchWork(actor: Actor, input: ClockSelection) {
   return getDatabase().$transaction(
     async (tx) => {
       await lockActor(tx, actor.userId);
+      const command = {
+        submissionId: input.submissionId,
+        action: "TIME_SWITCH",
+        payload: {
+          projectId: input.projectId,
+          workCodeId: input.workCodeId,
+          message: input.message,
+        },
+      };
+      const replay = await replayReceipt(tx, actor.userId, command);
+      if (replay) return replay.resourceId!;
       await validateAssignment(tx, actor, input);
       const open = await tx.timeEntry.findFirst({ where: { userId: actor.userId, endedAt: null } });
       if (!open) throw new BusinessError("NOT_CLOCKED_IN");
@@ -381,17 +474,26 @@ export async function switchWork(actor: Actor, input: ClockSelection) {
           metadata: { previousEntryId: open.id },
         },
       });
+      await saveReceipt(tx, actor.userId, command, next.id);
       return next.id;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 
-export async function setPresence(actor: Actor, state: "AVAILABLE" | "OFF_DUTY", message: string) {
+export async function setPresence(actor: Actor, input: PresenceInput) {
+  const { state, message } = input;
   authorizeClock(actor);
   return getDatabase().$transaction(
     async (tx) => {
       await lockActor(tx, actor.userId);
+      const command = {
+        submissionId: input.submissionId,
+        action: state === "AVAILABLE" ? "PRESENCE_AVAILABLE" : "PRESENCE_OFF_DUTY",
+        payload: { state, message: state === "OFF_DUTY" ? "" : message },
+      };
+      const replay = await replayReceipt(tx, actor.userId, command);
+      if (replay) return;
       const current = await currentState(tx, actor.userId);
       try {
         transitionClock(current, {
@@ -412,11 +514,12 @@ export async function setPresence(actor: Actor, state: "AVAILABLE" | "OFF_DUTY",
           state === "AVAILABLE" ? "PRESENCE_AVAILABLE" : "PRESENCE_OFF_DUTY",
         ),
       });
+      await saveReceipt(tx, actor.userId, command);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 
-export async function setAvailable(actor: Actor, message: string) {
-  return setPresence(actor, "AVAILABLE", message);
+export async function setAvailable(actor: Actor, message: string, submissionId: string) {
+  return setPresence(actor, { state: "AVAILABLE", message, submissionId });
 }

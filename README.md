@@ -2,7 +2,7 @@
 
 A secure, modern successor to the original **People & Projects Tracking System**. PPTS tracks team presence, project work, time entries, and—incrementally—projects, reporting, notes, and private documents.
 
-> **Status:** pre-release modernization. Local OIDC and revocable sessions, transactional presence/time tracking, scoped project membership, people/catalog/project administration with optional employee/login linking, organization-timezone monthly HTML/CSV reporting, self-service correction, and bounded administrator audit visibility are implemented. Secure document storage, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
+> **Status:** pre-release modernization. Local OIDC and revocable sessions, transactional replay-safe presence/time tracking, scoped project membership, people/catalog/project administration with optional employee/login linking, organization-timezone monthly HTML/CSV reporting, precision-preserving paginated self-service correction, responsive mutation feedback and a live current timer, bounded administrator audit visibility, and quarantine-first scanned project documents are implemented. Production object storage/document policy, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
 
 ## History of PPTS
 
@@ -22,6 +22,7 @@ The port replaces the original early-2000s application with a server-rendered Ty
 - PostgreSQL 18.3 with Prisma 7.10.1
 - Keycloak 26.8.1 and standards-based OIDC Authorization Code flow with PKCE
 - Podman Compose with native ARM64/AMD64 images, isolated networks, and digest-pinned runtime images
+- Private quarantine/clean document storage and a separate fail-closed ClamAV scanning worker
 - `jose` for JWT verification and purpose-bound authenticated encryption
 - Node's built-in test runner, ESLint, Prettier, and reproducible npm supply-chain gates
 - A server-rendered UI with an original, restrained design inspired by clarity and spatial consistency
@@ -99,6 +100,7 @@ npm run typecheck
 npm test                  # pure unit tests; included in verify
 npm run test:contract     # every route/business action retains test evidence
 npm run test:integration  # real PostgreSQL; CI migrates an empty test database
+npm run maintenance:clock-receipts  # purge expired clock/presence retry receipts
 npm run build
 npm run verify             # static, dependency, unit, contract, and build gates
 ```
@@ -139,6 +141,7 @@ A feature or fix is not complete until every changed action has retained positiv
 - [Dependency and supply-chain policy](docs/security/dependency-policy.md)
 - [Local operations](docs/operations/local-development.md)
 - [Local Keycloak identity](docs/operations/local-identity.md)
+- [Project-document operations](docs/operations/project-documents.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## License

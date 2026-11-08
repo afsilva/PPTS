@@ -29,6 +29,18 @@ KC=http://localhost:${KEYCLOAK_PORT:-8080}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
+# A fresh key per run keeps this script repeatable while retaining one key for
+# the deliberate exact-replay and changed-payload assertions below.
+new_submission_id() { node -e 'process.stdout.write(crypto.randomUUID())'; }
+admin_reset_id=$(new_submission_id)
+admin_foreign_clock_id=$(new_submission_id)
+admin_clock_in_id=$(new_submission_id)
+admin_switch_id=$(new_submission_id)
+admin_clock_out_id=$(new_submission_id)
+employee_denied_clock_id=$(new_submission_id)
+employee_clock_in_id=$(new_submission_id)
+employee_clock_out_id=$(new_submission_id)
+
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); printf 'ok   - %s\n' "$1"; }
@@ -118,7 +130,7 @@ check "administrator can open bounded audit events" $([ "$code" = 200 ] && grep 
 DB_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E '(^|/)ppts-db-[0-9]+$' || true)
 if [ -n "$DB_CONTAINER" ]; then
   # Normalize a prior interrupted run through the public business route.
-  curl -s -o /dev/null -b "$JAR_A" --data '' -H "Origin: $APP" "$APP/api/time/clock-out"
+  curl -s -o /dev/null -b "$JAR_A" --data "submissionId=$admin_reset_id" -H "Origin: $APP" "$APP/api/time/clock-out"
   # Exercise administrator-only profile/account lifecycle through public routes.
   "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c "UPDATE \"Person\" SET \"userId\"=NULL WHERE \"displayName\"='E2E Linked Profile'; DELETE FROM \"Person\" WHERE \"displayName\"='E2E Linked Profile'" >/dev/null
   code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data 'submissionId=00000000-0000-4000-8000-0000000000e2&kind=EMPLOYEE&displayName=E2E%20Linked%20Profile' -H "Origin: http://evil.example" "$APP/api/people")
@@ -147,17 +159,17 @@ if [ -n "$DB_CONTAINER" ]; then
   engineering_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "WorkCode" WHERE name = '\''Engineering'\'' AND active LIMIT 1')
   planning_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "WorkCode" WHERE name = '\''Planning'\'' AND active LIMIT 1')
   if [ -n "$project_id" ] && [ -n "$engineering_id" ] && [ -n "$planning_id" ]; then
-    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: http://evil.example" "$APP/api/time/clock-in")
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "submissionId=$admin_foreign_clock_id&projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: http://evil.example" "$APP/api/time/clock-in")
     check "clock-in rejects a foreign Origin" $([ "$code" = 403 ]; echo $?)
-    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: $APP" "$APP/api/time/clock-in")
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "submissionId=$admin_clock_in_id&projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: $APP" "$APP/api/time/clock-in")
     check "administrator can clock into an active project" $([ "$code" = 303 ]; echo $?)
     curl -s -b "$JAR_A" "$APP/" | grep -q "E2E engineering"
     check "dashboard reads current work from the database" $?
-    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$planning_id&message=E2E%20planning" -H "Origin: $APP" "$APP/api/time/switch")
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "submissionId=$admin_switch_id&projectId=$project_id&workCodeId=$planning_id&message=E2E%20planning" -H "Origin: $APP" "$APP/api/time/switch")
     check "administrator can switch work atomically" $([ "$code" = 303 ]; echo $?)
     open_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''alex.admin'\'' AND e."endedAt" IS NULL')
     check "switch leaves exactly one open administrator entry" $([ "$open_count" = 1 ]; echo $?)
-    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data '' -H "Origin: $APP" "$APP/api/time/clock-out")
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "submissionId=$admin_clock_out_id" -H "Origin: $APP" "$APP/api/time/clock-out")
     check "administrator can clock out" $([ "$code" = 303 ]; echo $?)
     open_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''alex.admin'\'' AND e."endedAt" IS NULL')
     check "clock-out leaves no open administrator entry" $([ "$open_count" = 0 ]; echo $?)
@@ -214,7 +226,7 @@ check "employee audit UI fails closed" $(printf '%s' "$location" | grep -q "$APP
 location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data 'id=00000000-0000-4000-8000-000000000001&userId=00000000-0000-4000-8000-000000000002&version=1' -H "Origin: $APP" "$APP/api/people/link")
 check "employee identity-link administration fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
 if [ -n "${project_id:-}" ] && [ -n "${denied_project_id:-}" ] && [ -n "${engineering_id:-}" ]; then
-  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "projectId=$denied_project_id&workCodeId=$engineering_id&message=Must%20be%20denied" -H "Origin: $APP" "$APP/api/time/clock-in")
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "submissionId=$employee_denied_clock_id&projectId=$denied_project_id&workCodeId=$engineering_id&message=Must%20be%20denied" -H "Origin: $APP" "$APP/api/time/clock-in")
   check "unassigned employee clock-in fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
   employee_open=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''casey.employee'\'' AND e."endedAt" IS NULL')
   check "denied employee clock-in creates no open entry" $([ "$employee_open" = 0 ]; echo $?)
@@ -230,12 +242,73 @@ if [ -n "${project_id:-}" ] && [ -n "${denied_project_id:-}" ] && [ -n "${engine
   membership_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT COUNT(*) FROM \"ProjectMember\" WHERE \"projectId\"='$project_id'::uuid AND \"userId\"='$casey_id'::uuid AND role='CONTRIBUTOR'")
   check "membership assignment persists authorized scope" $([ "$membership_count" = 1 ]; echo $?)
 
-  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20employee" -H "Origin: $APP" "$APP/api/time/clock-in")
+  # Project documents cross a private quarantine/ClamAV boundary. The EICAR
+  # string is generated at runtime and never committed as an upload fixture.
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" \
+    -H "Origin: http://evil.example" \
+    -F "submissionId=00000000-0000-4000-8000-0000000000d1" \
+    -F "document=@-;filename=denied.txt;type=text/plain" \
+    "$APP/api/projects/$project_id/documents" <<'DOC'
+foreign origin must not persist
+DOC
+  )
+  check "document upload rejects a foreign Origin" $([ "$code" = 403 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" \
+    -H "Origin: $APP" \
+    -F "submissionId=00000000-0000-4000-8000-0000000000d1" \
+    -F "document=@-;filename=e2e-notes.txt;type=text/plain" \
+    "$APP/api/projects/$project_id/documents" <<'DOC'
+E2E private clean document
+DOC
+  )
+  check "assigned employee can upload a quarantined document" $([ "$code" = 303 ]; echo $?)
+  clean_document_id=""
+  scan_wait=0
+  while [ "$scan_wait" -lt 30 ]; do
+    clean_document_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT id FROM \"ProjectDocument\" WHERE \"submissionId\"='00000000-0000-4000-8000-0000000000d1'::uuid AND status='AVAILABLE'")
+    [ -n "$clean_document_id" ] && break
+    scan_wait=$((scan_wait + 1)); sleep 1
+  done
+  check "clean document becomes available only after scanning" $([ -n "$clean_document_id" ]; echo $?)
+  code=$(curl -s -D "$WORK/document-headers" -o "$WORK/document.txt" -w '%{http_code}' -b "$JAR_B" "$APP/api/projects/$project_id/documents/$clean_document_id/download")
+  check "authorized document download is a private attachment" $([ "$code" = 200 ] && grep -qi '^content-disposition: attachment' "$WORK/document-headers" && grep -qi '^cache-control: private, no-store' "$WORK/document-headers" && grep -q 'E2E private clean document' "$WORK/document.txt"; echo $?)
+
+  eicar='X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
+  code=$(printf '%s' "$eicar" | curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" \
+    -H "Origin: $APP" \
+    -F "submissionId=00000000-0000-4000-8000-0000000000d2" \
+    -F "document=@-;filename=eicar.txt;type=text/plain" \
+    "$APP/api/projects/$project_id/documents")
+  check "assigned employee can submit a malware-scanning test document" $([ "$code" = 303 ]; echo $?)
+  infected_status=""
+  scan_wait=0
+  while [ "$scan_wait" -lt 30 ]; do
+    infected_status=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT status FROM \"ProjectDocument\" WHERE \"submissionId\"='00000000-0000-4000-8000-0000000000d2'::uuid")
+    [ "$infected_status" = REJECTED ] && break
+    scan_wait=$((scan_wait + 1)); sleep 1
+  done
+  check "ClamAV rejects EICAR and never makes it downloadable" $([ "$infected_status" = REJECTED ]; echo $?)
+
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data "submissionId=$employee_clock_in_id&projectId=$project_id&workCodeId=$engineering_id&message=E2E%20employee" -H "Origin: $APP" "$APP/api/time/clock-in")
   check "assigned employee can clock in" $([ "$code" = 303 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data "submissionId=$employee_clock_in_id&projectId=$project_id&workCodeId=$engineering_id&message=E2E%20employee" -H "Origin: $APP" "$APP/api/time/clock-in")
+  check "exact clock-in replay returns success" $([ "$code" = 303 ]; echo $?)
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "submissionId=$employee_clock_in_id&projectId=$project_id&workCodeId=$engineering_id&message=Changed%20replay" -H "Origin: $APP" "$APP/api/time/clock-in")
+  check "changed clock-in replay fails closed" $(printf '%s' "$location" | grep -q 'result=idempotency-conflict'; echo $?)
   employee_open=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''casey.employee'\'' AND e."endedAt" IS NULL')
-  check "assigned employee has exactly one open entry" $([ "$employee_open" = 1 ]; echo $?)
-  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data '' -H "Origin: $APP" "$APP/api/time/clock-out")
+  check "clock-in retry leaves exactly one open entry" $([ "$employee_open" = 1 ]; echo $?)
+  replay_audits=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT COUNT(*) FROM \"AuditEvent\" a JOIN \"ClockMutationReceipt\" r ON r.\"resourceId\"=a.\"resourceId\"::uuid JOIN \"User\" u ON u.id=r.\"userId\" WHERE u.username='casey.employee' AND r.\"submissionId\"='$employee_clock_in_id'::uuid AND a.action='TIME_CLOCK_IN' AND a.outcome='SUCCESS'")
+  check "clock-in retry commits one success audit" $([ "$replay_audits" = 1 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data "submissionId=$employee_clock_out_id" -H "Origin: $APP" "$APP/api/time/clock-out")
   check "assigned employee can clock out" $([ "$code" = 303 ]; echo $?)
+  correction_row=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -AtF '|' -c 'SELECT e.id, e.version, to_char(e."startedAt" AT TIME ZONE '\''UTC'\'', '\''YYYY-MM-DD"T"HH24:MI:SS.MS'\''), to_char(e."endedAt" AT TIME ZONE '\''UTC'\'', '\''YYYY-MM-DD"T"HH24:MI:SS.MS'\'') FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''casey.employee'\'' AND e."endedAt" IS NOT NULL ORDER BY e."startedAt" DESC LIMIT 1')
+  IFS='|' read -r correction_id correction_version correction_start correction_end <<EOF
+$correction_row
+EOF
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data-urlencode "id=$correction_id" --data-urlencode "version=$correction_version" --data-urlencode "startedAt=$correction_start" --data-urlencode "endedAt=$correction_end" --data-urlencode 'note=E2E corrected own time' -H "Origin: $APP" "$APP/api/time/correct")
+  check "employee can correct own completed time with precision" $(printf '%s' "$location" | grep -q 'result=corrected'; echo $?)
+  corrected_note=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT note FROM \"TimeEntry\" WHERE id='$correction_id'::uuid")
+  check "own-time correction persists refreshed state" $([ "$corrected_note" = 'E2E corrected own time' ]; echo $?)
   location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "projectId=$denied_project_id&userId=$casey_id&role=MANAGER" -H "Origin: $APP" "$APP/api/projects/members")
   check "employee project administration fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
 fi

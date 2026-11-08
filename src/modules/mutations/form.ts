@@ -1,6 +1,8 @@
 import { BusinessError } from "@/modules/business/errors";
 
-export const MAX_FORM_BYTES = 4096;
+// Allows the largest current URL-encoded form, including percent-encoded UTF-8,
+// while remaining a deliberately small application-level request boundary.
+export const MAX_FORM_BYTES = 16_384;
 
 export async function readBoundedForm(request: Request) {
   if (!request.body) return {};

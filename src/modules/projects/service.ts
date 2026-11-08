@@ -4,6 +4,7 @@ import { getDatabase } from "@/db/client";
 import type { Actor } from "@/modules/authorization/policy";
 import { requireAllowed } from "@/modules/authorization/policy";
 import { BusinessError } from "@/modules/business/errors";
+import { listProjectDocuments } from "@/modules/documents/service";
 import type { ProjectLogInput, ProjectUpdateInput } from "./schemas";
 
 async function projectScope(actor: Actor, projectId: string) {
@@ -49,7 +50,12 @@ export async function getProjectDetail(actor: Actor, projectId: string) {
     },
   });
   if (!project || project.archivedAt) throw new BusinessError("INVALID_TARGET");
-  return { project, canManage: await projectScope(actor, projectId) };
+  const documents = await listProjectDocuments(actor, projectId);
+  const membership = project.members.find((member) => member.userId === actor.userId);
+  const canWriteDocuments =
+    !actor.roles.includes("AUDITOR") &&
+    (actor.roles.includes("ADMINISTRATOR") || Boolean(membership));
+  return { project, documents, canWriteDocuments, canManage: await projectScope(actor, projectId) };
 }
 
 export async function getProjectEditorOptions(actor: Actor, projectId: string) {

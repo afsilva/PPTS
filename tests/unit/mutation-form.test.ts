@@ -17,8 +17,8 @@ test("bounded form reads ordinary URL-encoded values", async () => {
   });
 });
 
-test("bounded form rejects streamed bodies beyond 4 KiB", async () => {
-  const oversized = request(`message=${"x".repeat(4097)}`);
+test("bounded form rejects streamed bodies beyond 16 KiB", async () => {
+  const oversized = request(`message=${"x".repeat(16_385)}`);
   await assert.rejects(
     () => readBoundedForm(oversized),
     (error: unknown) => error instanceof BusinessError && error.code === "PAYLOAD_TOO_LARGE",

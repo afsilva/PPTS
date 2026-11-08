@@ -960,8 +960,47 @@
   padding: 8px;
   border-top: 1px solid var(--border);
 }
-.journalForm {
+.journalForm,
+.documentForm {
   display: grid;
+  gap: 10px;
+}
+.documentForm label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.documentForm input[type="file"] {
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.documentList {
+  display: grid;
+  margin-top: 14px;
+}
+.documentList > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.documentList strong,
+.documentList small {
+  display: block;
+}
+.documentList small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+}
+.documentActions {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 .memberList {

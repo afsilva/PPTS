@@ -10,8 +10,13 @@ export async function POST(request: Request) {
   try {
     const input = presenceSchema.parse(await readBoundedForm(request));
     action = input.state === "AVAILABLE" ? "PRESENCE_AVAILABLE" : "PRESENCE_OFF_DUTY";
-    await setPresence(authorization.actor, input.state, input.message);
-    return mutationResult(request);
+    await setPresence(authorization.actor, input);
+    return mutationResult(
+      request,
+      undefined,
+      "/",
+      input.state === "AVAILABLE" ? "available" : "off-duty",
+    );
   } catch (error) {
     await auditMutationFailure(authorization.actor, action, error);
     return mutationResult(request, error);

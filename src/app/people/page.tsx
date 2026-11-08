@@ -5,6 +5,7 @@ import { readSession } from "@/auth/session";
 import type { Actor } from "@/modules/authorization/policy";
 import { getAvailableIdentityAccounts, getPeople } from "@/modules/people/service";
 import { MutationForm, SubmitButton } from "@/app/components/submit-button";
+import { MutationNotice } from "@/app/components/mutation-notice";
 import styles from "../page.module.css";
 
 function feedback(result?: string) {
@@ -44,13 +45,9 @@ export default async function PeoplePage({
         Profiles are business records. Authentication accounts and roles remain managed by Keycloak.
       </p>
       {notice && (
-        <p
-          className={notice.ok ? styles.notice : styles.errorNotice}
-          role="status"
-          aria-live="polite"
-        >
+        <MutationNotice className={notice.ok ? styles.notice : styles.errorNotice}>
           {notice.text}
-        </p>
+        </MutationNotice>
       )}
       <section className={styles.managementCard}>
         <h2>Add person</h2>

@@ -45,7 +45,17 @@ make start
 
 On macOS, the script also detects whether a Podman machine exists and starts or creates it when necessary. On Linux, Podman runs natively.
 
-The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service, followed by an idempotent one-shot seed for the synthetic Northstar Studio / PPTS Modernization catalog and active Engineering, Planning, and Testing work codes. The app waits for both catalog seeding and Keycloak reconciliation. The seed does not create users, memberships, presence, or time entries. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes.
+The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service, followed by an idempotent one-shot seed for the synthetic Northstar Studio / PPTS Modernization catalog and active Engineering, Planning, and Testing work codes. The app waits for both catalog seeding and Keycloak reconciliation. The seed does not create users, memberships, presence, or time entries. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes. Private document bytes and malware definitions persist in `ppts-documents` and `ppts-clamav-definitions`; quarantined bytes are never served. See [project-document operations](project-documents.md).
+
+### Clock/presence receipt maintenance
+
+Clock and presence mutations retain actor-scoped replay receipts for 24 hours so a retried request cannot duplicate a transition or success audit. Purge expired rows with:
+
+```bash
+npm run maintenance:clock-receipts
+```
+
+The command uses `DATABASE_URL`, deletes only expired receipts, and prints only the removed count. Run it at least daily in a single scheduled maintenance job in production. Local pre-release use may run it manually; a production scheduler and monitoring policy remain a release requirement. Deleting an unexpired receipt weakens retry guarantees, so do not truncate the table during normal operation.
 
 ### Lifecycle commands
 
@@ -60,7 +70,7 @@ make config    # render and validate Compose configuration
 make help
 ```
 
-`make clean` permanently deletes both Podman database volumes. It intentionally preserves the external runtime directory and credentials. Remove that directory manually only when you also intend to delete local credentials.
+`make clean` permanently deletes both Podman database volumes, private document bytes, and ClamAV definition data. It intentionally preserves the external runtime directory and credentials. Remove that directory manually only when you also intend to delete local credentials.
 
 ### Overrides
 

@@ -56,6 +56,12 @@ button:disabled {
   vertical-align: -0.1em;
   animation: submit-spin 0.7s linear infinite;
 }
+.mutationError {
+  flex-basis: 100%;
+  margin: 8px 0 0;
+  color: #8b2929;
+  font-size: 0.875rem;
+}
 @keyframes submit-spin {
   to {
     transform: rotate(360deg);

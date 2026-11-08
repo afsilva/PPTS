@@ -13,6 +13,12 @@ FROM dependencies AS builder
 COPY . .
 RUN npx prisma generate && npm run build
 
+FROM dependencies AS document-worker
+COPY . .
+RUN npx prisma generate
+USER 1001:1001
+CMD ["node", "--conditions", "react-server", "--import", "./tests/setup/node-exports-shim.mjs", "--import", "tsx", "src/workers/documents.ts"]
+
 FROM node:24.13.1-bookworm-slim@sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2 AS runner
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const input = clockInSchema.parse(await readBoundedForm(request));
     await clockIn(authorization.actor, input);
-    return mutationResult(request);
+    return mutationResult(request, undefined, "/", "clocked-in");
   } catch (error) {
     await auditMutationFailure(authorization.actor, "TIME_CLOCK_IN", error);
     return mutationResult(request, error);

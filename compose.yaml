@@ -151,6 +151,82 @@ services:
     pids_limit: 128
     cpus: 1.0
 
+  document-storage-init:
+    image: docker.io/library/node:24.13.1-bookworm-slim@sha256:a81a03dd965b4052269a57fac857004022b522a4bf06e7a739e25e18bce45af2
+    command:
+      [
+        "sh",
+        "-c",
+        "mkdir -p /var/lib/ppts-documents/quarantine /var/lib/ppts-documents/clean && chown -R 1001:1001 /var/lib/ppts-documents",
+      ]
+    volumes: ["ppts-documents:/var/lib/ppts-documents"]
+    restart: "no"
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    pids_limit: 32
+    cpus: 0.25
+
+  clamav:
+    image: docker.io/clamav/clamav-debian:1.5.1@sha256:c102cd8fffe36fb27808a714f2d9c977e28549b3aae1ea0de7d7ac7814f8ded7
+    restart: unless-stopped
+    volumes: ["ppts-clamav-definitions:/var/lib/clamav"]
+    networks: [document-scan]
+    cap_drop: ["ALL"]
+    # The upstream entrypoint initializes the named definitions volume before
+    # dropping privileges; these are the minimum filesystem/user capabilities.
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1536m
+    pids_limit: 256
+    cpus: 2.0
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  document-worker:
+    build: { context: ., target: document-worker }
+    restart: unless-stopped
+    command:
+      [
+        "node",
+        "--conditions",
+        "react-server",
+        "--import",
+        "./tests/setup/node-exports-shim.mjs",
+        "--import",
+        "tsx",
+        "src/workers/documents.ts",
+      ]
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/ppts
+      DOCUMENT_STORAGE_ROOT: /var/lib/ppts-documents
+      DOCUMENT_MAX_BYTES: ${DOCUMENT_MAX_BYTES:-5242880}
+      DOCUMENT_PROJECT_MAX_BYTES: ${DOCUMENT_PROJECT_MAX_BYTES:-104857600}
+      DOCUMENT_PROJECT_MAX_COUNT: ${DOCUMENT_PROJECT_MAX_COUNT:-500}
+      DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-0}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      CLAMAV_TIMEOUT_MS: 30000
+    volumes: ["ppts-documents:/var/lib/ppts-documents"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      document-storage-init: { condition: service_completed_successfully }
+      clamav: { condition: service_healthy }
+    networks: [data, document-scan]
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 256
+    cpus: 1.0
+
   app:
     build: { context: ., target: runner }
     restart: unless-stopped
@@ -162,11 +238,19 @@ services:
       OIDC_CLIENT_ID: ppts-local
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
       ORGANIZATION_TIME_ZONE: ${ORGANIZATION_TIME_ZONE:-UTC}
+      DOCUMENT_STORAGE_ROOT: /var/lib/ppts-documents
+      DOCUMENT_MAX_BYTES: ${DOCUMENT_MAX_BYTES:-5242880}
+      DOCUMENT_PROJECT_MAX_BYTES: ${DOCUMENT_PROJECT_MAX_BYTES:-104857600}
+      DOCUMENT_PROJECT_MAX_COUNT: ${DOCUMENT_PROJECT_MAX_COUNT:-500}
+      DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-0}
+    volumes:
+      - ppts-documents:/var/lib/ppts-documents
     ports:
       - "127.0.0.1:${PPTS_PORT:-3000}:3000"
     depends_on:
       seed: { condition: service_completed_successfully }
       keycloak-bootstrap: { condition: service_completed_successfully }
+      document-storage-init: { condition: service_completed_successfully }
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
@@ -195,13 +279,19 @@ services:
 # - identity: routed (browser-facing Keycloak on 127.0.0.1) shared by app and
 #   Keycloak for token/JWKS/health calls. Databases are unreachable from the
 #   routed network, so a published port cannot expose a database.
+# - document-scan: internal-only worker-to-ClamAV channel. The app and browser
+#   cannot reach clamd; quarantined bytes are never served.
 networks:
   data:
     internal: true
   identity-data:
     internal: true
   identity:
+  document-scan:
+    internal: true
 
 volumes:
   ppts-db:
   ppts-keycloak-db:
+  ppts-documents:
+  ppts-clamav-definitions:

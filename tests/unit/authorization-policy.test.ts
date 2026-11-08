@@ -66,6 +66,44 @@ test("project membership administration requires administrator or verified manag
   );
 });
 
+test("document access requires project scope and auditors stay read-only", () => {
+  assert.equal(
+    can(actor(["EMPLOYEE"]), { capability: "READ_PROJECT_DOCUMENT", scoped: true }),
+    true,
+  );
+  assert.equal(
+    can(actor(["EMPLOYEE"]), { capability: "WRITE_PROJECT_DOCUMENT", scoped: true }),
+    true,
+  );
+  assert.equal(
+    can(actor(["EMPLOYEE"]), { capability: "DELETE_PROJECT_DOCUMENT", scoped: false }),
+    false,
+  );
+  assert.equal(
+    can(actor(["MANAGER"]), { capability: "WRITE_PROJECT_DOCUMENT", scoped: true }),
+    true,
+  );
+  assert.equal(
+    can(actor(["ADMINISTRATOR"]), { capability: "WRITE_PROJECT_DOCUMENT", scoped: false }),
+    true,
+  );
+  assert.equal(
+    can(actor(["AUDITOR"]), { capability: "READ_PROJECT_DOCUMENT", scoped: true }),
+    true,
+  );
+  assert.equal(
+    can(actor(["AUDITOR"]), { capability: "WRITE_PROJECT_DOCUMENT", scoped: true }),
+    false,
+  );
+  assert.equal(
+    can(actor(["AUDITOR", "ADMINISTRATOR"]), {
+      capability: "DELETE_PROJECT_DOCUMENT",
+      scoped: true,
+    }),
+    false,
+  );
+});
+
 test("management permissions and own-only correction are explicit and deny by default", () => {
   assert.equal(can(actor(["MANAGER"]), { capability: "MANAGE_PROJECT", scoped: true }), true);
   assert.equal(can(actor(["MANAGER"]), { capability: "MANAGE_PROJECT", scoped: false }), false);

@@ -6,11 +6,12 @@ import { PrismaClient } from "../../src/generated/prisma/client";
 import {
   clockIn,
   clockOut,
+  purgeExpiredClockMutationReceipts,
   setAvailable,
   setPresence,
   switchWork,
 } from "../../src/modules/time-tracking/service";
-import { correctOwnTime } from "../../src/modules/time-tracking/corrections";
+import { correctOwnTime, getOwnTimeHistoryPage } from "../../src/modules/time-tracking/corrections";
 import type { Actor } from "../../src/modules/authorization/policy";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -23,6 +24,7 @@ let userId: string;
 let projectA: string;
 let projectB: string;
 let workCode: string;
+const submissionId = () => randomUUID();
 
 before(async () => {
   const user = await db.user.create({
@@ -68,6 +70,7 @@ before(async () => {
 
 after(async () => {
   await db.auditEvent.deleteMany({ where: { actorId: userId } });
+  await db.clockMutationReceipt.deleteMany({ where: { userId } });
   await db.session.deleteMany({ where: { userId } });
   await db.timeEntry.deleteMany({ where: { userId } });
   await db.presence.deleteMany({ where: { userId } });
@@ -83,8 +86,18 @@ after(async () => {
 
 test("concurrent clock-in leaves exactly one open entry", async () => {
   const results = await Promise.allSettled([
-    clockIn(actor, { projectId: projectA, workCodeId: workCode, message: "First" }),
-    clockIn(actor, { projectId: projectA, workCodeId: workCode, message: "Second" }),
+    clockIn(actor, {
+      submissionId: submissionId(),
+      projectId: projectA,
+      workCodeId: workCode,
+      message: "First",
+    }),
+    clockIn(actor, {
+      submissionId: submissionId(),
+      projectId: projectA,
+      workCodeId: workCode,
+      message: "Second",
+    }),
   ]);
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(results.filter((result) => result.status === "rejected").length, 1);
@@ -93,11 +106,81 @@ test("concurrent clock-in leaves exactly one open entry", async () => {
     await db.auditEvent.count({ where: { actorId: userId, action: "TIME_CLOCK_IN" } }),
     1,
   );
+  await clockOut(actor, { submissionId: submissionId() });
+});
+
+test("clock-in retry returns one result and conflicting key reuse fails closed", async () => {
+  const key = submissionId();
+  const command = {
+    submissionId: key,
+    projectId: projectA,
+    workCodeId: workCode,
+    message: "Retry safe",
+  };
+  const firstId = await clockIn(actor, command);
+  const replayId = await clockIn(actor, command);
+  assert.equal(replayId, firstId);
+  assert.equal(await db.timeEntry.count({ where: { id: firstId } }), 1);
+  assert.equal(
+    await db.auditEvent.count({
+      where: { actorId: userId, action: "TIME_CLOCK_IN", resourceId: firstId },
+    }),
+    1,
+  );
+  await assert.rejects(
+    () => clockIn(actor, { ...command, message: "Conflicting replay" }),
+    /idempotency_conflict/,
+  );
+  await clockOut(actor, { submissionId: submissionId() });
+  const expired = await db.clockMutationReceipt.create({
+    data: {
+      userId,
+      submissionId: submissionId(),
+      action: "TEST",
+      fingerprint: "0".repeat(64),
+      createdAt: new Date(Date.now() - 2_000),
+      expiresAt: new Date(Date.now() - 1_000),
+    },
+  });
+  const purged = await purgeExpiredClockMutationReceipts();
+  assert.ok(purged.count >= 1);
+  assert.equal(
+    await db.clockMutationReceipt.count({
+      where: { userId, submissionId: expired.submissionId },
+    }),
+    0,
+  );
+  const reusableKey = submissionId();
+  await db.clockMutationReceipt.create({
+    data: {
+      userId,
+      submissionId: reusableKey,
+      action: "TIME_CLOCK_IN",
+      fingerprint: "0".repeat(64),
+      createdAt: new Date(Date.now() - 2_000),
+      expiresAt: new Date(Date.now() - 1_000),
+    },
+  });
+  const reusedId = await clockIn(actor, {
+    submissionId: reusableKey,
+    projectId: projectA,
+    workCodeId: workCode,
+    message: "Expired key reused",
+  });
+  assert.equal(await db.timeEntry.count({ where: { id: reusedId, endedAt: null } }), 1);
+  await clockOut(actor, { submissionId: submissionId() });
+  await clockIn(actor, {
+    submissionId: submissionId(),
+    projectId: projectA,
+    workCodeId: workCode,
+    message: "Ready to switch",
+  });
 });
 
 test("switch closes the old entry and opens a new one atomically", async () => {
   const old = await db.timeEntry.findFirstOrThrow({ where: { userId, endedAt: null } });
   const nextId = await switchWork(actor, {
+    submissionId: submissionId(),
     projectId: projectB,
     workCodeId: workCode,
     message: "Switched",
@@ -115,8 +198,38 @@ test("switch closes the old entry and opens a new one atomically", async () => {
   assert.equal(await db.timeEntry.count({ where: { userId, endedAt: null } }), 1);
 });
 
-test("clock-out closes work, clears project presence, and audits", async () => {
-  const entryId = await clockOut(actor);
+test("switch replay is idempotent and does not create a third entry", async () => {
+  const open = await db.timeEntry.findFirstOrThrow({ where: { userId, endedAt: null } });
+  const command = {
+    submissionId: submissionId(),
+    projectId: open.projectId === projectA ? projectB : projectA,
+    workCodeId: workCode,
+    message: "Replay switch",
+  };
+  const nextId = await switchWork(actor, command);
+  assert.equal(await switchWork(actor, command), nextId);
+  assert.equal(await db.timeEntry.count({ where: { userId, endedAt: null } }), 1);
+  assert.equal(
+    await db.auditEvent.count({
+      where: { actorId: userId, action: "TIME_SWITCH", resourceId: nextId },
+    }),
+    1,
+  );
+});
+
+test("clock-out replay returns the original result with one audit", async () => {
+  const key = submissionId();
+  const entryId = await clockOut(actor, { submissionId: key });
+  assert.equal(await clockOut(actor, { submissionId: key }), entryId);
+  await assert.rejects(
+    () =>
+      setPresence(actor, {
+        submissionId: key,
+        state: "AVAILABLE",
+        message: "Cross-action conflict",
+      }),
+    /idempotency_conflict/,
+  );
   const [entry, presence] = await Promise.all([
     db.timeEntry.findUniqueOrThrow({ where: { id: entryId } }),
     db.presence.findUniqueOrThrow({ where: { userId } }),
@@ -125,13 +238,17 @@ test("clock-out closes work, clears project presence, and audits", async () => {
   assert.equal(presence.state, "OFF_DUTY");
   assert.equal(presence.projectId, null);
   assert.equal(
-    await db.auditEvent.count({ where: { actorId: userId, action: "TIME_CLOCK_OUT" } }),
+    await db.auditEvent.count({
+      where: { actorId: userId, action: "TIME_CLOCK_OUT", resourceId: entryId },
+    }),
     1,
   );
 });
 
-test("available updates non-working presence and audits", async () => {
-  await setAvailable(actor, "Ready for work");
+test("available replay is idempotent and conflicting payload reuse fails closed", async () => {
+  const key = submissionId();
+  await setAvailable(actor, "Ready for work", key);
+  await setAvailable(actor, "Ready for work", key);
   const presence = await db.presence.findUniqueOrThrow({ where: { userId } });
   assert.equal(presence.state, "AVAILABLE");
   assert.equal(presence.projectId, null);
@@ -140,10 +257,19 @@ test("available updates non-working presence and audits", async () => {
     await db.auditEvent.count({ where: { actorId: userId, action: "PRESENCE_AVAILABLE" } }),
     1,
   );
+  await assert.rejects(() => setAvailable(actor, "Changed replay", key), /idempotency_conflict/);
+  assert.equal(
+    (await db.presence.findUniqueOrThrow({ where: { userId } })).message,
+    "Ready for work",
+  );
 });
 
 test("off-duty clears available presence and audits", async () => {
-  await setPresence(actor, "OFF_DUTY", "untrusted ignored message");
+  await setPresence(actor, {
+    submissionId: submissionId(),
+    state: "OFF_DUTY",
+    message: "untrusted ignored message",
+  });
   const presence = await db.presence.findUniqueOrThrow({ where: { userId } });
   assert.equal(presence.state, "OFF_DUTY");
   assert.equal(presence.projectId, null);
@@ -156,15 +282,20 @@ test("off-duty clears available presence and audits", async () => {
 
 test("concurrent available and clock-in preserve a consistent snapshot", async () => {
   const results = await Promise.allSettled([
-    setAvailable(actor, "Ready"),
-    clockIn(actor, { projectId: projectA, workCodeId: workCode, message: "Working" }),
+    setAvailable(actor, "Ready", submissionId()),
+    clockIn(actor, {
+      submissionId: submissionId(),
+      projectId: projectA,
+      workCodeId: workCode,
+      message: "Working",
+    }),
   ]);
   const presence = await db.presence.findUniqueOrThrow({ where: { userId } });
   const open = await db.timeEntry.findFirst({ where: { userId, endedAt: null } });
   if (open) {
     assert.equal(presence.state, "WORKING");
     assert.equal(presence.projectId, open.projectId);
-    await clockOut(actor);
+    await clockOut(actor, { submissionId: submissionId() });
   } else {
     assert.equal(presence.state, "AVAILABLE");
     assert.equal(presence.projectId, null);
@@ -197,8 +328,8 @@ test("owner corrects completed time with audit, stale and overlap protection", a
   const corrected = await correctOwnTime(actor, {
     id: first.id,
     version: 1,
-    startedAt: "2026-10-01T08:15",
-    endedAt: "2026-10-01T09:15",
+    startedAt: "2026-10-01T08:15:00.000",
+    endedAt: "2026-10-01T09:15:00.000",
     note: "Reviewed",
   });
   assert.equal(corrected.version, 2);
@@ -214,8 +345,8 @@ test("owner corrects completed time with audit, stale and overlap protection", a
       correctOwnTime(actor, {
         id: first.id,
         version: 1,
-        startedAt: "2026-10-01T08:00",
-        endedAt: "2026-10-01T09:00",
+        startedAt: "2026-10-01T08:00:00.000",
+        endedAt: "2026-10-01T09:00:00.000",
         note: "Stale",
       }),
     /stale_version/,
@@ -225,8 +356,8 @@ test("owner corrects completed time with audit, stale and overlap protection", a
       correctOwnTime(actor, {
         id: first.id,
         version: 2,
-        startedAt: "2026-10-01T09:30",
-        endedAt: "2026-10-01T10:30",
+        startedAt: "2026-10-01T09:30:00.000",
+        endedAt: "2026-10-01T10:30:00.000",
         note: "Overlap",
       }),
     /overlapping_time/,
@@ -244,8 +375,8 @@ test("owner corrects completed time with audit, stale and overlap protection", a
   const foreignCorrection = {
     id: first.id,
     version: 2,
-    startedAt: "2026-10-01T08:00",
-    endedAt: "2026-10-01T09:00",
+    startedAt: "2026-10-01T08:00:00.000",
+    endedAt: "2026-10-01T09:00:00.000",
     note: "IDOR",
   };
   await assert.rejects(
@@ -266,6 +397,67 @@ test("owner corrects completed time with audit, stale and overlap protection", a
   await db.timeEntry.deleteMany({ where: { id: { in: [first.id, second.id] } } });
 });
 
+test("unchanged correction preserves millisecond precision without version or audit changes", async () => {
+  const entry = await db.timeEntry.create({
+    data: {
+      userId,
+      projectId: projectA,
+      workCodeId: workCode,
+      startedAt: new Date("2026-10-02T08:15:42.731Z"),
+      endedAt: new Date("2026-10-02T09:16:03.112Z"),
+      note: "Exact",
+    },
+  });
+  const beforeAudits = await db.auditEvent.count({
+    where: { actorId: userId, action: "TIME_CORRECTED", resourceId: entry.id },
+  });
+  const unchanged = await correctOwnTime(actor, {
+    id: entry.id,
+    version: entry.version,
+    startedAt: "2026-10-02T08:15:42.731",
+    endedAt: "2026-10-02T09:16:03.112",
+    note: "Exact",
+  });
+  assert.equal(unchanged.version, entry.version);
+  assert.equal(unchanged.startedAt.toISOString(), "2026-10-02T08:15:42.731Z");
+  assert.equal(unchanged.endedAt?.toISOString(), "2026-10-02T09:16:03.112Z");
+  assert.equal(
+    await db.auditEvent.count({
+      where: { actorId: userId, action: "TIME_CORRECTED", resourceId: entry.id },
+    }),
+    beforeAudits,
+  );
+  await db.timeEntry.delete({ where: { id: entry.id } });
+});
+
+test("own time history paginates beyond the first 50 completed entries", async () => {
+  const ids: string[] = [];
+  for (let index = 0; index < 51; index += 1) {
+    const day = new Date(Date.UTC(2026, 0, 1 + index, 8, 0, 0));
+    const created = await db.timeEntry.create({
+      data: {
+        userId,
+        projectId: projectA,
+        workCodeId: workCode,
+        startedAt: day,
+        endedAt: new Date(day.getTime() + 3_600_000),
+      },
+    });
+    ids.push(created.id);
+  }
+  const first = await getOwnTimeHistoryPage(actor, 1);
+  const third = await getOwnTimeHistoryPage(actor, 3);
+  assert.equal(first.entries.length, 20);
+  assert.ok(first.total >= 51);
+  assert.ok(third.entries.length >= 11);
+  assert.equal(
+    new Set([...first.entries, ...third.entries].map((entry) => entry.id)).size,
+    first.entries.length + third.entries.length,
+  );
+  assert.ok(third.entries.some((entry) => ids.includes(entry.id)));
+  await db.timeEntry.deleteMany({ where: { id: { in: ids } } });
+});
+
 test("unassigned projects fail closed without creating time or audit rows", async () => {
   const client = await db.client.findFirstOrThrow({ where: { name: `Client ${marker}` } });
   const status = await db.projectStatus.findFirstOrThrow({ where: { name: `Status ${marker}` } });
@@ -273,7 +465,13 @@ test("unassigned projects fail closed without creating time or audit rows", asyn
     data: { clientId: client.id, statusId: status.id, name: `Unassigned ${marker}` },
   });
   await assert.rejects(
-    () => clockIn(actor, { projectId: project.id, workCodeId: workCode, message: "Denied" }),
+    () =>
+      clockIn(actor, {
+        submissionId: submissionId(),
+        projectId: project.id,
+        workCodeId: workCode,
+        message: "Denied",
+      }),
     /invalid_assignment/,
   );
   assert.equal(await db.timeEntry.count({ where: { userId, endedAt: null } }), 0);

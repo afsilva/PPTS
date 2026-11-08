@@ -31,12 +31,21 @@ export async function authorizeMutation(request: Request) {
   return { actor } as const;
 }
 
-export function mutationResult(request: Request, error?: unknown, returnTo = "/") {
+export function mutationResult(
+  request: Request,
+  error?: unknown,
+  returnTo = "/",
+  successResult = "saved",
+) {
   if (error instanceof BusinessError && error.code === "PAYLOAD_TOO_LARGE")
     return errorResponse("Payload Too Large", 413);
-  const destination = new URL(returnTo, request.url);
+  // The standalone server binds to 0.0.0.0 internally, so request.url can use
+  // that bind address even when the public application origin is localhost.
+  // Redirect only to the configured trusted origin; this also keeps enhanced
+  // fetch redirects inside connect-src 'self'.
+  const destination = new URL(returnTo, getAuthConfig().APP_ORIGIN);
   if (error) destination.searchParams.set("result", publicError(error));
-  else destination.searchParams.set("result", "saved");
+  else destination.searchParams.set("result", successResult);
   return NextResponse.redirect(destination, {
     status: 303,
     headers: { "Cache-Control": "no-store" },
@@ -52,8 +61,19 @@ function publicError(error: unknown) {
         return "not-working";
       case "NO_CHANGE":
         return "no-change";
+      case "IDEMPOTENCY_CONFLICT":
+        return "idempotency-conflict";
       case "PAYLOAD_TOO_LARGE":
         return "failed";
+      case "INVALID_DOCUMENT":
+      case "UNSUPPORTED_DOCUMENT":
+        return "unsupported-document";
+      case "DOCUMENT_QUOTA_EXCEEDED":
+        return "document-quota";
+      case "DOCUMENT_UNAVAILABLE":
+        return "document-unavailable";
+      case "RETENTION_ACTIVE":
+        return "retention-active";
       case "STALE_VERSION":
         return "stale";
       case "ENTITY_IN_USE":

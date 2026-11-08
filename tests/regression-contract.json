@@ -89,7 +89,7 @@
       "evidence": [
         {
           "file": "tests/integration/time-tracking.test.ts",
-          "contains": "clock-out closes work, clears project presence, and audits"
+          "contains": "clock-out replay returns the original result with one audit"
         }
       ]
     },
@@ -111,7 +111,7 @@
       "evidence": [
         {
           "file": "tests/integration/time-tracking.test.ts",
-          "contains": "available updates non-working presence and audits"
+          "contains": "available replay is idempotent and conflicting payload reuse fails closed"
         }
       ]
     },
@@ -353,6 +353,47 @@
           "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
         }
       ]
+    },
+    {
+      "id": "projects.documents.upload",
+      "implementation": "src/app/api/projects/[id]/documents/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/project-documents.test.ts",
+          "contains": "member upload is idempotent, quarantined, private, and atomically audited"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "clean document becomes available only after scanning"
+        }
+      ]
+    },
+    {
+      "id": "projects.documents.download",
+      "implementation": "src/app/api/projects/[id]/documents/[documentId]/download/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        {
+          "file": "tests/unit/document-validation.test.ts",
+          "contains": "download disposition is attachment-only and cannot inject headers"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "authorized document download is a private attachment"
+        }
+      ]
+    },
+    {
+      "id": "projects.documents.delete",
+      "implementation": "src/app/api/projects/[id]/documents/[documentId]/delete/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/project-documents.test.ts",
+          "contains": "delete makes a quarantined document inaccessible and leaves an audited tombstone"
+        }
+      ]
     }
   ],
   "businessActions": [
@@ -385,7 +426,7 @@
       "evidence": [
         {
           "file": "tests/integration/time-tracking.test.ts",
-          "contains": "clock-out closes work, clears project presence, and audits"
+          "contains": "clock-out replay returns the original result with one audit"
         }
       ]
     },
@@ -407,7 +448,18 @@
       "evidence": [
         {
           "file": "tests/integration/time-tracking.test.ts",
-          "contains": "available updates non-working presence and audits"
+          "contains": "available replay is idempotent and conflicting payload reuse fails closed"
+        }
+      ]
+    },
+    {
+      "id": "time.clock-receipts.cleanup.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "purgeExpiredClockMutationReceipts",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "clock-in retry returns one result and conflicting key reuse fails closed"
         }
       ]
     },
@@ -625,6 +677,17 @@
       ]
     },
     {
+      "id": "time.history.pagination.service",
+      "implementation": "src/modules/time-tracking/corrections.ts",
+      "export": "getOwnTimeHistoryPage",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "own time history paginates beyond the first 50 completed entries"
+        }
+      ]
+    },
+    {
       "id": "time.correct.service",
       "implementation": "src/modules/time-tracking/corrections.ts",
       "export": "correctOwnTime",
@@ -720,6 +783,80 @@
         {
           "file": "tests/integration/parity-workflows.test.ts",
           "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
+        }
+      ]
+    },
+    {
+      "id": "documents.list.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "listProjectDocuments",
+      "evidence": [
+        {
+          "file": "tests/integration/project-documents.test.ts",
+          "contains": "member upload is idempotent, quarantined, private, and atomically audited"
+        }
+      ]
+    },
+    {
+      "id": "documents.upload.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "uploadProjectDocument",
+      "evidence": [
+        {
+          "file": "tests/integration/project-documents.test.ts",
+          "contains": "member upload is idempotent, quarantined, private, and atomically audited"
+        }
+      ]
+    },
+    {
+      "id": "documents.scan.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "processDocumentScan",
+      "evidence": [
+        {
+          "file": "tests/unit/document-validation.test.ts",
+          "contains": "document formats require matching extension and complete signatures"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "ClamAV rejects EICAR and never makes it downloadable"
+        }
+      ]
+    },
+    {
+      "id": "documents.process-pending.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "processPendingDocuments",
+      "evidence": [
+        {
+          "file": "tests/unit/document-validation.test.ts",
+          "contains": "document formats require matching extension and complete signatures"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "ClamAV rejects EICAR and never makes it downloadable"
+        }
+      ]
+    },
+    {
+      "id": "documents.open.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "openProjectDocument",
+      "evidence": [
+        {
+          "file": "tests/unit/document-validation.test.ts",
+          "contains": "download disposition is attachment-only and cannot inject headers"
+        }
+      ]
+    },
+    {
+      "id": "documents.delete.service",
+      "implementation": "src/modules/documents/service.ts",
+      "export": "deleteProjectDocument",
+      "evidence": [
+        {
+          "file": "tests/integration/project-documents.test.ts",
+          "contains": "delete makes a quarantined document inaccessible and leaves an audited tombstone"
         }
       ]
     }

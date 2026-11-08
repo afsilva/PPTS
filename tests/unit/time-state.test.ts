@@ -7,6 +7,11 @@ import {
   transitionClock,
   type ClockState,
 } from "../../src/modules/time-tracking/domain";
+import {
+  clockInSchema,
+  clockOutSchema,
+  presenceSchema,
+} from "../../src/modules/time-tracking/schemas";
 
 const off: ClockState = { presence: "OFF_DUTY", openEntry: null };
 const working: ClockState = {
@@ -81,6 +86,23 @@ test("messages are bounded and stripped of controls", () => {
   assert.equal(cleanMessage("  design\n review\u0000  "), "design review");
   assert.equal(cleanMessage("x".repeat(500)).length, 280);
   assert.equal(cleanMessage(null), "");
+});
+
+test("clock mutation schemas require a strict UUID replay key", () => {
+  const submissionId = "00000000-0000-4000-8000-000000000001";
+  const projectId = "00000000-0000-4000-8000-000000000002";
+  const workCodeId = "00000000-0000-4000-8000-000000000003";
+  assert.equal(clockOutSchema.parse({ submissionId }).submissionId, submissionId);
+  assert.equal(
+    clockInSchema.parse({ submissionId, projectId, workCodeId, message: " Ready " }).message,
+    "Ready",
+  );
+  assert.equal(
+    presenceSchema.parse({ submissionId, state: "AVAILABLE", message: " Ready " }).state,
+    "AVAILABLE",
+  );
+  assert.throws(() => clockOutSchema.parse({}));
+  assert.throws(() => clockInSchema.parse({ submissionId: "replay", projectId, workCodeId }));
 });
 
 test("duration is server-derived, clipped to reporting boundaries, and never negative", () => {

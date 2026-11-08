@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { readSession } from "@/auth/session";
 import { displayRole } from "@/auth/roles";
@@ -5,6 +6,8 @@ import { can, type Actor } from "@/modules/authorization/policy";
 import { getDashboard } from "@/modules/time-tracking/service";
 import { getCatalog } from "@/modules/catalog/service";
 import { MutationForm, SubmitButton } from "@/app/components/submit-button";
+import { MutationNotice } from "@/app/components/mutation-notice";
+import { LiveTimer } from "@/app/components/live-timer";
 import styles from "./page.module.css";
 
 function Icon({ children }: { children: React.ReactNode }) {
@@ -21,13 +24,6 @@ function duration(seconds: number) {
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
-function clock(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainder = seconds % 60;
-  return [hours, minutes, remainder].map((part) => String(part).padStart(2, "0")).join(":");
-}
-
 function stateLabel(state: string) {
   if (state === "WORKING") return "Working";
   if (state === "AVAILABLE") return "Available";
@@ -36,6 +32,16 @@ function stateLabel(state: string) {
 
 function resultMessage(result?: string) {
   switch (result) {
+    case "clocked-in":
+      return "Timer started. Current work is shown below.";
+    case "switched":
+      return "Timer switched to the selected work.";
+    case "clocked-out":
+      return "Timer stopped and the completed entry is now in My time.";
+    case "available":
+      return "Your presence is now Available.";
+    case "off-duty":
+      return "Your presence is now Off duty.";
     case "saved":
       return "The update was saved.";
     case "already-working":
@@ -169,9 +175,20 @@ export default async function Home({
         </header>
 
         {feedback && (
-          <p className={result === "saved" ? styles.notice : styles.errorNotice} role="status">
+          <MutationNotice
+            className={
+              result === "saved" ||
+              result === "clocked-in" ||
+              result === "switched" ||
+              result === "clocked-out" ||
+              result === "available" ||
+              result === "off-duty"
+                ? styles.notice
+                : styles.errorNotice
+            }
+          >
             {feedback}
-          </p>
+          </MutationNotice>
         )}
 
         <section id="overview" className={styles.heroGrid} aria-label="Current work overview">
@@ -195,12 +212,11 @@ export default async function Home({
                     </p>
                   </div>
                 </div>
-                <p className={styles.timer} aria-label={`${duration(elapsed)} elapsed`}>
-                  {clock(elapsed)}
-                </p>
+                <LiveTimer className={styles.timer} baselineSeconds={elapsed} />
                 {canChangeClock && (
                   <div className={styles.timerActions}>
-                    <MutationForm action="/api/time/clock-out" method="post">
+                    <MutationForm action="/api/time/clock-out" method="post" mutationGroup="clock">
+                      <input type="hidden" name="submissionId" value={randomUUID()} />
                       <SubmitButton className={styles.stopButton} pendingLabel="Stopping…">
                         <span aria-hidden="true">■</span> Stop timer
                       </SubmitButton>
@@ -252,7 +268,9 @@ export default async function Home({
                 className={styles.clockForm}
                 action={dashboard.current ? "/api/time/switch" : "/api/time/clock-in"}
                 method="post"
+                mutationGroup="clock"
               >
+                <input type="hidden" name="submissionId" value={randomUUID()} />
                 <label>
                   Project
                   <select name="projectId" defaultValue={dashboard.current?.projectId} required>
@@ -296,7 +314,9 @@ export default async function Home({
                   className={styles.availableForm}
                   action="/api/time/available"
                   method="post"
+                  mutationGroup="clock"
                 >
+                  <input type="hidden" name="submissionId" value={randomUUID()} />
                   <input type="hidden" name="state" value="AVAILABLE" />
                   <label>
                     Availability message
@@ -307,7 +327,8 @@ export default async function Home({
                   </SubmitButton>
                 </MutationForm>
                 {dashboard.user.presence !== "OFF_DUTY" && (
-                  <MutationForm action="/api/time/available" method="post">
+                  <MutationForm action="/api/time/available" method="post" mutationGroup="clock">
+                    <input type="hidden" name="submissionId" value={randomUUID()} />
                     <input type="hidden" name="state" value="OFF_DUTY" />
                     <input type="hidden" name="message" value="" />
                     <SubmitButton className={styles.secondaryButton} pendingLabel="Updating…">

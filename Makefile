@@ -22,7 +22,7 @@ help: ## Show available commands
 	  '  make start     Start Podman if needed, build, migrate, seed, and run PPTS' \
 	  '  make restart   Stop and start the stack' \
 	  '  make stop      Stop containers while preserving database data' \
-	  '  make clean     Remove containers, images, and both local database volumes' \
+	  '  make clean     Remove containers, images, databases, document bytes, and scanner data' \
 	  '  make status    Show stack status' \
 	  '  make logs      Follow application logs' \
 	  '  make config    Render and validate the Compose configuration' \
