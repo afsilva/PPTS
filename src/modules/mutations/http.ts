@@ -17,7 +17,8 @@ export async function authorizeMutation(request: Request) {
   if (request.headers.get("origin") !== config.APP_ORIGIN)
     return { response: errorResponse("Forbidden", 403) } as const;
   const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
-  if (!contentType.startsWith("application/x-www-form-urlencoded"))
+  const mediaType = contentType.split(";", 1)[0]?.trim();
+  if (mediaType !== "application/x-www-form-urlencoded")
     return { response: errorResponse("Unsupported Media Type", 415) } as const;
   const lengthHeader = request.headers.get("content-length");
   if (lengthHeader) {
@@ -30,10 +31,10 @@ export async function authorizeMutation(request: Request) {
   return { actor } as const;
 }
 
-export function mutationResult(request: Request, error?: unknown) {
+export function mutationResult(request: Request, error?: unknown, returnTo = "/") {
   if (error instanceof BusinessError && error.code === "PAYLOAD_TOO_LARGE")
     return errorResponse("Payload Too Large", 413);
-  const destination = new URL("/", request.url);
+  const destination = new URL(returnTo, request.url);
   if (error) destination.searchParams.set("result", publicError(error));
   else destination.searchParams.set("result", "saved");
   return NextResponse.redirect(destination, {
@@ -53,6 +54,14 @@ function publicError(error: unknown) {
         return "no-change";
       case "PAYLOAD_TOO_LARGE":
         return "failed";
+      case "STALE_VERSION":
+        return "stale";
+      case "ENTITY_IN_USE":
+        return "in-use";
+      case "INVALID_INTERVAL":
+        return "invalid-interval";
+      case "OVERLAPPING_TIME":
+        return "overlap";
       case "INVALID_ASSIGNMENT":
       case "INVALID_TARGET":
       case "FORBIDDEN":

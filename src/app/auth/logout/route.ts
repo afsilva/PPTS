@@ -4,6 +4,7 @@ import { getAuthConfig } from "@/auth/config";
 import { unseal } from "@/auth/crypto";
 import { discovery } from "@/auth/oidc";
 import { destroySession, readSession } from "@/auth/session";
+import { storeLogoutTransaction } from "@/auth/logout-transaction";
 
 export async function POST(request: NextRequest) {
   const config = getAuthConfig();
@@ -38,7 +39,10 @@ export async function POST(request: NextRequest) {
   } catch {
     destination = new URL("/login", config.APP_ORIGIN);
   }
-  return NextResponse.redirect(destination, {
+  await storeLogoutTransaction(destination.href);
+  // Keep the form redirect same-origin so CSP form-action remains strict. The
+  // completion page performs a fresh top-level navigation to Keycloak.
+  return NextResponse.redirect(new URL("/auth/logout/complete", config.APP_ORIGIN), {
     status: 303,
     headers: { "Cache-Control": "no-store" },
   });

@@ -38,19 +38,17 @@
 - Production-IdP sandbox and production HTTPS/MFA validation
 - Remaining authorization-matrix capabilities and cross-user negative tests
 - Explicit idempotency/retry contract for clock mutations
-- Dependency-aware readiness
 - Login rate limits, session caps/cleanup, and audit retention/export/alerting
 - PostgreSQL backup/restore smoke test
-- CI-backed real-PostgreSQL integration gate
-- Organization timezone decision; current dashboard boundaries and labels are UTC
+- Dashboard day/week boundaries remain UTC; monthly reporting now uses configurable organization time
 
 ## Milestone 2 — Core administration
 
-Complete people, clients, projects, statuses, work codes, and membership CRUD/lifecycle; archiving; privacy-aware profiles; and complete audit coverage. Milestone 1 includes only the narrow membership-assignment operation required to make clock authorization usable.
+Client, project-status, project, and work-code creation/editing plus archive/state controls are implemented. Identity-independent people/contact profiles, administrator-controlled one-to-one links from active login accounts to employee profiles, full project metadata, scoped membership removal, and journal workflows are available. Keycloak role lifecycle/production synchronization, richer privacy policy, and complete lifecycle administration remain.
 
 ## Milestone 3 — Reports and corrections
 
-Timezone-aware monthly reporting, CSV export, correction requests/approval, and reconciliation fixtures against the legacy application.
+Monthly reports now group accurate time by client, project, and immutable user identity, clipping intervals at configurable IANA organization-timezone boundaries with DST fixtures. Authorized CSV export shares report scope and neutralizes spreadsheet formulas. Administrators have a bounded, metadata-minimized read-only audit view. Legacy-parity time correction is complete: each authenticated non-auditor can immediately correct only their own completed entries, with ownership, overlap, interval, optimistic-concurrency, and audit controls. The original has no manager approval or cross-user correction workflow, so neither is planned for parity. Legacy report reconciliation fixtures remain.
 
 ## Milestone 4 — Notes and documents
 

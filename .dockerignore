@@ -4,6 +4,7 @@
 node_modules
 /src/generated
 coverage
+original
 .env
 .env.*
 !.env.example

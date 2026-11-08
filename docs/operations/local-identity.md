@@ -39,6 +39,8 @@ The Keycloak console administrator is `local-admin`; its generated password is s
 - The session cookie contains no OIDC token and is validated against an authoritative revocable server-side record; the ID token is encrypted server-side only for provider logout.
 - Server-side session records support revocation and inactive-user enforcement.
 - User identity binds only on `(issuer, subject)`, never email.
+- The OIDC client has `fullScopeAllowed=false`; only the four approved PPTS realm roles are explicitly mapped into its token scope.
+- Administrators may associate an already provisioned active login with one employee business profile in `/people`. This link does not create an account, change credentials, or change roles; those remain Keycloak-managed. Contacts cannot be linked, and unlinking preserves the login, profile, sessions, time entries, and audit records.
 - Keycloak credentials and both database passwords remain outside Git.
 - Keycloak and app databases use separate Podman volumes.
 - Ports bind only to loopback; local HTTP is never a production configuration.

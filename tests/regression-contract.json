@@ -5,14 +5,22 @@
       "id": "health.liveness",
       "implementation": "src/app/api/health/live/route.ts",
       "methods": ["GET"],
-      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "health endpoint is live" }]
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "health endpoint is live"
+        }
+      ]
     },
     {
       "id": "health.readiness",
       "implementation": "src/app/api/health/ready/route.ts",
       "methods": ["GET"],
       "evidence": [
-        { "file": "scripts/e2e-oidc.sh", "contains": "process readiness endpoint is available" }
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "process readiness endpoint is available"
+        }
       ]
     },
     {
@@ -20,14 +28,22 @@
       "implementation": "src/app/auth/login/route.ts",
       "methods": ["GET"],
       "evidence": [
-        { "file": "scripts/e2e-oidc.sh", "contains": "admin login lands on the dashboard" }
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "admin login lands on the dashboard"
+        }
       ]
     },
     {
       "id": "auth.callback",
       "implementation": "src/app/auth/callback/route.ts",
       "methods": ["GET"],
-      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "invalid callback fails closed" }]
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "invalid callback fails closed"
+        }
+      ]
     },
     {
       "id": "auth.session",
@@ -44,7 +60,12 @@
       "id": "auth.logout",
       "implementation": "src/app/auth/logout/route.ts",
       "methods": ["POST"],
-      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "logout rejects a foreign Origin" }]
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "logout rejects a foreign Origin"
+        }
+      ]
     },
     {
       "id": "time.clock-in",
@@ -55,7 +76,10 @@
           "file": "tests/integration/time-tracking.test.ts",
           "contains": "concurrent clock-in leaves exactly one open entry"
         },
-        { "file": "scripts/e2e-oidc.sh", "contains": "unassigned employee clock-in fails closed" }
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "unassigned employee clock-in fails closed"
+        }
       ]
     },
     {
@@ -92,6 +116,72 @@
       ]
     },
     {
+      "id": "catalog.clients.create",
+      "implementation": "src/app/api/catalog/clients/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.statuses.create",
+      "implementation": "src/app/api/catalog/statuses/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-codes.create",
+      "implementation": "src/app/api/catalog/work-codes/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.projects.create",
+      "implementation": "src/app/api/catalog/projects/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.archive",
+      "implementation": "src/app/api/catalog/archive/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-codes.state",
+      "implementation": "src/app/api/catalog/work-codes/state/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
       "id": "projects.members.assign",
       "implementation": "src/app/api/projects/members/route.ts",
       "methods": ["POST"],
@@ -103,6 +193,164 @@
         {
           "file": "scripts/e2e-oidc.sh",
           "contains": "employee project administration fails closed"
+        }
+      ]
+    },
+    {
+      "id": "people.create",
+      "implementation": "src/app/api/people/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/people-schemas.test.ts",
+          "contains": "person input is normalized and bounded"
+        }
+      ]
+    },
+    {
+      "id": "people.update",
+      "implementation": "src/app/api/people/update/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/people-schemas.test.ts",
+          "contains": "person updates require UUID and positive optimistic version"
+        }
+      ]
+    },
+    {
+      "id": "people.archive",
+      "implementation": "src/app/api/people/archive/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_PEOPLE_AND_ROLES"
+        }
+      ]
+    },
+    {
+      "id": "projects.update",
+      "implementation": "src/app/api/projects/update/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/project-schemas.test.ts",
+          "contains": "project update converts money to cents"
+        }
+      ]
+    },
+    {
+      "id": "projects.logs.create",
+      "implementation": "src/app/api/projects/logs/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/unit/project-schemas.test.ts",
+          "contains": "project journal requires bounded nonblank plain text"
+        }
+      ]
+    },
+    {
+      "id": "time.correct",
+      "implementation": "src/app/api/time/correct/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "owner corrects completed time with audit, stale and overlap protection"
+        }
+      ]
+    },
+    {
+      "id": "projects.members.remove",
+      "implementation": "src/app/api/projects/members/remove/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "project manager removes another member with audit but cannot remove self"
+        }
+      ]
+    },
+    {
+      "id": "auth.logout.provider",
+      "implementation": "src/app/auth/logout/provider/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "Keycloak SSO session terminated by logout"
+        }
+      ]
+    },
+    {
+      "id": "catalog.clients.update",
+      "implementation": "src/app/api/catalog/clients/update/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "catalog.statuses.update",
+      "implementation": "src/app/api/catalog/statuses/update/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-codes.update",
+      "implementation": "src/app/api/catalog/work-codes/update/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "reports.monthly.csv",
+      "implementation": "src/app/api/reports/monthly.csv/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        {
+          "file": "tests/unit/report-csv.test.ts",
+          "contains": "spreadsheet formula prefixes are neutralized"
+        },
+        {
+          "file": "tests/integration/reporting-audit.test.ts",
+          "contains": "report authorization scopes managers while administrators and auditors read all"
+        }
+      ]
+    },
+    {
+      "id": "people.identity-link",
+      "implementation": "src/app/api/people/link/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
+        }
+      ]
+    },
+    {
+      "id": "people.identity-unlink",
+      "implementation": "src/app/api/people/unlink/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
         }
       ]
     }
@@ -164,6 +412,109 @@
       ]
     },
     {
+      "id": "catalog.read.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "getCatalog",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.client.create.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "createClient",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.status.create.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "createProjectStatus",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-code.create.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "createWorkCode",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.project.create.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "createProject",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.archive.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "setArchived",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-code-state.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "setWorkCodeState",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_CLIENTS_AND_CODES"
+        }
+      ]
+    },
+    {
+      "id": "reports.monthly.service",
+      "implementation": "src/modules/reports/service.ts",
+      "export": "getMonthlyReport",
+      "evidence": [
+        {
+          "file": "tests/integration/reporting-audit.test.ts",
+          "contains": "report authorization scopes managers while administrators and auditors read all"
+        },
+        {
+          "file": "tests/integration/reporting-audit.test.ts",
+          "contains": "report clips organization-local month boundaries and keeps duplicate names separate"
+        }
+      ]
+    },
+    {
+      "id": "presence.state.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "setPresence",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "off-duty clears available presence and audits"
+        }
+      ]
+    },
+    {
       "id": "projects.members.assign.service",
       "implementation": "src/modules/projects/membership.ts",
       "export": "assignProjectMember",
@@ -171,6 +522,204 @@
         {
           "file": "tests/integration/project-membership.test.ts",
           "contains": "project-scoped manager can assign a member only within managed scope"
+        }
+      ]
+    },
+    {
+      "id": "people.read.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "getPeople",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_PEOPLE_AND_ROLES"
+        }
+      ]
+    },
+    {
+      "id": "people.create.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "createPerson",
+      "evidence": [
+        {
+          "file": "tests/unit/people-schemas.test.ts",
+          "contains": "person input is normalized and bounded"
+        }
+      ]
+    },
+    {
+      "id": "people.update.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "updatePerson",
+      "evidence": [
+        {
+          "file": "tests/unit/people-schemas.test.ts",
+          "contains": "person updates require UUID and positive optimistic version"
+        }
+      ]
+    },
+    {
+      "id": "people.archive.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "archivePerson",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_PEOPLE_AND_ROLES"
+        }
+      ]
+    },
+    {
+      "id": "projects.detail.service",
+      "implementation": "src/modules/projects/service.ts",
+      "export": "getProjectDetail",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "READ_PROJECT"
+        }
+      ]
+    },
+    {
+      "id": "projects.editor.service",
+      "implementation": "src/modules/projects/service.ts",
+      "export": "getProjectEditorOptions",
+      "evidence": [
+        {
+          "file": "tests/unit/authorization-policy.test.ts",
+          "contains": "MANAGE_PROJECT"
+        }
+      ]
+    },
+    {
+      "id": "projects.update.service",
+      "implementation": "src/modules/projects/service.ts",
+      "export": "updateProject",
+      "evidence": [
+        {
+          "file": "tests/unit/project-schemas.test.ts",
+          "contains": "project update converts money to cents"
+        }
+      ]
+    },
+    {
+      "id": "projects.logs.create.service",
+      "implementation": "src/modules/projects/service.ts",
+      "export": "addProjectLog",
+      "evidence": [
+        {
+          "file": "tests/unit/project-schemas.test.ts",
+          "contains": "project journal requires bounded nonblank plain text"
+        }
+      ]
+    },
+    {
+      "id": "time.history.service",
+      "implementation": "src/modules/time-tracking/corrections.ts",
+      "export": "getOwnTimeHistory",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "owner corrects completed time with audit, stale and overlap protection"
+        }
+      ]
+    },
+    {
+      "id": "time.correct.service",
+      "implementation": "src/modules/time-tracking/corrections.ts",
+      "export": "correctOwnTime",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "owner corrects completed time with audit, stale and overlap protection"
+        }
+      ]
+    },
+    {
+      "id": "projects.members.remove.service",
+      "implementation": "src/modules/projects/membership.ts",
+      "export": "removeProjectMember",
+      "evidence": [
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "project manager removes another member with audit but cannot remove self"
+        }
+      ]
+    },
+    {
+      "id": "catalog.client.update.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "updateClient",
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "catalog.status.update.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "updateProjectStatus",
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "catalog.work-code.update.service",
+      "implementation": "src/modules/catalog/service.ts",
+      "export": "updateWorkCode",
+      "evidence": [
+        {
+          "file": "tests/integration/catalog-lifecycle.test.ts",
+          "contains": "administrator edits versioned catalog and stale writes fail"
+        }
+      ]
+    },
+    {
+      "id": "audit.events.read.service",
+      "implementation": "src/modules/audit/service.ts",
+      "export": "getAuditEvents",
+      "evidence": [
+        {
+          "file": "tests/integration/reporting-audit.test.ts",
+          "contains": "administrator audit view is bounded and minimizes arbitrary metadata"
+        }
+      ]
+    },
+    {
+      "id": "people.available-identities.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "getAvailableIdentityAccounts",
+      "evidence": [
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
+        }
+      ]
+    },
+    {
+      "id": "people.identity-link.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "linkPersonIdentity",
+      "evidence": [
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
+        }
+      ]
+    },
+    {
+      "id": "people.identity-unlink.service",
+      "implementation": "src/modules/people/service.ts",
+      "export": "unlinkPersonIdentity",
+      "evidence": [
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "administrator links and unlinks one active login while contacts and foreign actors fail closed"
         }
       ]
     }

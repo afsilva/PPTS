@@ -2,7 +2,7 @@
 
 A secure, modern successor to the original **People & Projects Tracking System**. PPTS tracks team presence, project work, time entries, and—incrementally—projects, reporting, notes, and private documents.
 
-> **Status:** pre-release secure time-tracking vertical slice. Local OIDC and revocable database-backed sessions are implemented, and the authenticated dashboard now uses database-backed presence, projects, personal time history, transactional clock actions, and scoped project membership. The local stack uses synthetic data only. Production readiness, complete authorization-matrix coverage, idempotency, dependency-aware readiness, and operational controls remain incomplete; do not use this release for production timekeeping or expose the local stack beyond loopback.
+> **Status:** pre-release modernization. Local OIDC and revocable sessions, transactional presence/time tracking, scoped project membership, people/catalog/project administration with optional employee/login linking, organization-timezone monthly HTML/CSV reporting, self-service correction, and bounded administrator audit visibility are implemented. Secure document storage, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
 
 ## History of PPTS
 
@@ -78,6 +78,7 @@ export APP_ORIGIN='http://localhost:3000'
 export OIDC_ISSUER='https://YOUR-IDP.example/realms/ppts'
 export OIDC_CLIENT_ID='ppts-local'
 export SESSION_SECRET='A_BASE64URL_SECRET_OF_AT_LEAST_43_CHARACTERS'
+export ORGANIZATION_TIME_ZONE='America/New_York'
 npm ci
 npm run db:generate
 npm run db:migrate
@@ -105,7 +106,7 @@ npm run verify             # static, dependency, unit, contract, and build gates
 Health endpoints:
 
 - `GET /api/health/live` — process liveness
-- `GET /api/health/ready` — process-level readiness placeholder; dependency-aware readiness remains a production blocker
+- `GET /api/health/ready` — dependency-aware PostgreSQL readiness (returns 503 when unavailable)
 
 ## Repository map
 
@@ -131,6 +132,7 @@ A feature or fix is not complete until every changed action has retained positiv
 ## Project documents
 
 - [Modernization proposal](MODERNIZATION_PROPOSAL.md)
+- [Legacy functional parity assessment](docs/migration/legacy-parity.md)
 - [Architecture](docs/architecture/overview.md)
 - [Security model](docs/security/threat-model.md)
 - [OWASP Top 10:2025 status](docs/security/owasp-top-10-2025.md)

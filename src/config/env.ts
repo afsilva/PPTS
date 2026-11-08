@@ -6,6 +6,16 @@ const schema = z.object({
   DATABASE_URL: z.url().startsWith("postgresql://").optional(),
 });
 
+export function getOrganizationTimeZone() {
+  const value = process.env.ORGANIZATION_TIME_ZONE ?? "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return value;
+  } catch {
+    throw new Error("ORGANIZATION_TIME_ZONE must be a valid IANA time-zone name.");
+  }
+}
+
 export function getServerEnv() {
   return schema.parse({
     NODE_ENV: process.env.NODE_ENV,

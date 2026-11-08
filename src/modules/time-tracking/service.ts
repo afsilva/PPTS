@@ -387,20 +387,36 @@ export async function switchWork(actor: Actor, input: ClockSelection) {
   );
 }
 
-export async function setAvailable(actor: Actor, message: string) {
+export async function setPresence(actor: Actor, state: "AVAILABLE" | "OFF_DUTY", message: string) {
   authorizeClock(actor);
   return getDatabase().$transaction(
     async (tx) => {
       await lockActor(tx, actor.userId);
-      const state = await currentState(tx, actor.userId);
-      if (state.openEntry) throw new BusinessError("ALREADY_CLOCKED_IN");
+      const current = await currentState(tx, actor.userId);
+      try {
+        transitionClock(current, {
+          type: state === "AVAILABLE" ? "SET_AVAILABLE" : "SET_OFF_DUTY",
+        });
+      } catch {
+        throw new BusinessError("ALREADY_CLOCKED_IN");
+      }
+      const safeMessage = state === "OFF_DUTY" ? "" : message;
       await tx.presence.upsert({
         where: { userId: actor.userId },
-        update: { state: "AVAILABLE", projectId: null, message, version: { increment: 1 } },
-        create: { userId: actor.userId, state: "AVAILABLE", message },
+        update: { state, projectId: null, message: safeMessage, version: { increment: 1 } },
+        create: { userId: actor.userId, state, message: safeMessage },
       });
-      await tx.auditEvent.create({ data: auditData(actor.userId, "PRESENCE_AVAILABLE") });
+      await tx.auditEvent.create({
+        data: auditData(
+          actor.userId,
+          state === "AVAILABLE" ? "PRESENCE_AVAILABLE" : "PRESENCE_OFF_DUTY",
+        ),
+      });
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+}
+
+export async function setAvailable(actor: Actor, message: string) {
+  return setPresence(actor, "AVAILABLE", message);
 }

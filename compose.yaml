@@ -62,6 +62,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
       KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
       KC_HTTP_ENABLED: "true"
+      JAVA_OPTS_APPEND: -XX:UseSVE=0
+      KC_FEATURES_DISABLED: identity-brokering-api,twitter-broker
+      KC_SPI_STICKY_SESSION_ENCODER_INFINISPAN_SHOULD_ATTACH_ROUTE: "false"
     volumes:
       - ./keycloak/ppts-realm.json:/opt/keycloak/data/import/ppts-realm.json:ro
     ports:
@@ -101,6 +104,7 @@ services:
       KEYCLOAK_ALEX_PASSWORD: ${KEYCLOAK_ALEX_PASSWORD:?KEYCLOAK_ALEX_PASSWORD is required}
       KEYCLOAK_CASEY_PASSWORD: ${KEYCLOAK_CASEY_PASSWORD:?KEYCLOAK_CASEY_PASSWORD is required}
       PPTS_PORT: ${PPTS_PORT:-3000}
+      KC_OPTS: -XX:UseSVE=0
     volumes:
       - ./keycloak/reconcile-realm.sh:/bootstrap/reconcile-realm.sh:ro
     depends_on:
@@ -157,6 +161,7 @@ services:
       OIDC_INTERNAL_ISSUER: http://keycloak:8080/realms/ppts
       OIDC_CLIENT_ID: ppts-local
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      ORGANIZATION_TIME_ZONE: ${ORGANIZATION_TIME_ZONE:-UTC}
     ports:
       - "127.0.0.1:${PPTS_PORT:-3000}:3000"
     depends_on:
@@ -178,7 +183,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:3000/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
         ]
       interval: 10s
       timeout: 3s

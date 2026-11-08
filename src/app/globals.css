@@ -41,6 +41,26 @@ a {
 button {
   color: inherit;
 }
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.submitSpinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: submit-spin 0.7s linear infinite;
+}
+@keyframes submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;

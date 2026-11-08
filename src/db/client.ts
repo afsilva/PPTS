@@ -13,6 +13,8 @@ function createClient() {
 
 export function getDatabase() {
   const client = globalForPrisma.prisma ?? createClient();
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  // One pool per application process. Creating a client per production request
+  // leaks pools under readiness polling and can exhaust PostgreSQL connections.
+  globalForPrisma.prisma = client;
   return client;
 }

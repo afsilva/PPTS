@@ -11,7 +11,7 @@ $kcadm update realms/ppts -s sslRequired=none >/dev/null
 client_id=$($kcadm get clients -r ppts -q clientId=ppts-local --fields id --format csv --noquotes | sed -n '1p')
 [ -n "$client_id" ] || { echo "Canonical ppts-local client is missing" >&2; exit 1; }
 $kcadm update "clients/$client_id" -r ppts \
-  -s enabled=true -s publicClient=true -s standardFlowEnabled=true \
+  -s enabled=true -s publicClient=true -s fullScopeAllowed=false -s standardFlowEnabled=true \
   -s directAccessGrantsEnabled=false -s implicitFlowEnabled=false -s serviceAccountsEnabled=false \
   -s 'redirectUris=["http://localhost:'"$PPTS_PORT"'/auth/callback"]' \
   -s 'webOrigins=["http://localhost:'"$PPTS_PORT"'"]' \
@@ -31,8 +31,17 @@ $kcadm update "client-scopes/$roles_scope_id/protocol-mappers/models/$realm_role
   -s 'config."claim.name"="realm_access.roles"' \
   -s 'config."multivalued"="true"' >/dev/null
 
+# `fullScopeAllowed` is deliberately disabled. Map only PPTS's four approved
+# realm roles into this client so unrelated realm roles cannot enter tokens.
 for role in EMPLOYEE MANAGER ADMINISTRATOR AUDITOR; do
-  $kcadm get "roles/$role" -r ppts >/dev/null 2>&1 || { echo "Canonical realm role $role is missing" >&2; exit 1; }
+  role_id=$($kcadm get "roles/$role" -r ppts --fields id --format csv --noquotes 2>/dev/null || true)
+  [ -n "$role_id" ] || { echo "Canonical realm role $role is missing" >&2; exit 1; }
+  current=$($kcadm get "clients/$client_id/scope-mappings/realm" -r ppts --fields name --format csv --noquotes)
+  case "$current" in
+    *"$role"*) ;;
+    *) $kcadm create "clients/$client_id/scope-mappings/realm" -r ppts \
+         -b '[{"id":"'"$role_id"'","name":"'"$role"'"}]' >/dev/null ;;
+  esac
 done
 for item in "alex.admin:$KEYCLOAK_ALEX_PASSWORD" "casey.employee:$KEYCLOAK_CASEY_PASSWORD"; do
   username=${item%%:*}; password=${item#*:}

@@ -6,7 +6,7 @@ import { PrismaClient } from "../../src/generated/prisma/client";
 import type { Actor } from "../../src/modules/authorization/policy";
 import { auditMutationFailure } from "../../src/modules/audit/failure";
 import { BusinessError } from "../../src/modules/business/errors";
-import { assignProjectMember } from "../../src/modules/projects/membership";
+import { assignProjectMember, removeProjectMember } from "../../src/modules/projects/membership";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for integration tests.");
@@ -151,6 +151,24 @@ test("project-scoped manager can assign a member only within managed scope", asy
   });
   assert.equal(membership.projectId, managedProjectId);
   assert.equal(membership.userId, targetId);
+});
+
+test("project manager removes another member with audit but cannot remove self", async () => {
+  await removeProjectMember(manager, { projectId: managedProjectId, userId: targetId });
+  assert.equal(
+    await db.projectMember.count({ where: { projectId: managedProjectId, userId: targetId } }),
+    0,
+  );
+  assert.equal(
+    await db.auditEvent.count({
+      where: { actorId: manager.userId, action: "PROJECT_MEMBER_REMOVED" },
+    }),
+    1,
+  );
+  await assert.rejects(
+    () => removeProjectMember(manager, { projectId: managedProjectId, userId: manager.userId }),
+    /invalid_target/,
+  );
 });
 
 test("inactive user and archived project are rejected with no success audit", async () => {

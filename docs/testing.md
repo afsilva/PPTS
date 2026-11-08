@@ -49,4 +49,4 @@ For local execution, `npm run test:integration` requires `DATABASE_URL` for an e
 
 ## Remaining coverage
 
-Explicit manager-scoped HTTP/E2E behavior, cross-user time/report authorization, retry/idempotency behavior, migration upgrade fixtures from populated prior schemas, fault injection, and future correction/reporting capabilities are not yet complete. The organization timezone is unresolved, so current day/week tests use UTC boundaries.
+Explicit manager-scoped HTTP/E2E behavior, broader cross-user time/report authorization, retry/idempotency behavior, migration upgrade fixtures from populated prior schemas, and fault injection are not yet complete. Own completed-time correction has unit and PostgreSQL coverage, including denial of foreign-entry edits by employee, manager, and administrator actors. Monthly reports use the configured organization timezone; dashboard day/week tests still use UTC boundaries.

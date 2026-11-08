@@ -83,7 +83,13 @@ for (const entry of contract.businessActions ?? []) await checkEvidence(entry, "
 const registeredBusinessActions = new Set(
   (contract.businessActions ?? []).map((entry) => `${entry.implementation}#${entry.export}`),
 );
-for (const directory of ["src/modules/projects", "src/modules/time-tracking"]) {
+for (const directory of [
+  "src/modules/catalog",
+  "src/modules/people",
+  "src/modules/projects",
+  "src/modules/reports",
+  "src/modules/time-tracking",
+]) {
   for (const entry of await readdir(resolve(root, directory), { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name === "schemas.ts") continue;
     const implementation = `${directory}/${entry.name}`;

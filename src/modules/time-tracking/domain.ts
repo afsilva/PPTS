@@ -7,6 +7,7 @@ export type ClockState = Readonly<{
 }>;
 
 export type ClockCommand =
+  | Readonly<{ type: "SET_OFF_DUTY" }>
   | Readonly<{ type: "SET_AVAILABLE" }>
   | Readonly<{ type: "CLOCK_IN"; projectId: string; workCodeId: string }>
   | Readonly<{ type: "CLOCK_OUT" }>
@@ -28,6 +29,9 @@ export class ClockRuleError extends Error {
 /** Pure state machine; timestamps and persistence are server-owned concerns. */
 export function transitionClock(state: ClockState, command: ClockCommand): ClockTransition {
   switch (command.type) {
+    case "SET_OFF_DUTY":
+      if (state.openEntry) throw new ClockRuleError("ALREADY_CLOCKED_IN");
+      return { next: { presence: "OFF_DUTY", openEntry: null }, effect: "NONE" };
     case "SET_AVAILABLE":
       if (state.openEntry) throw new ClockRuleError("ALREADY_CLOCKED_IN");
       return { next: { presence: "AVAILABLE", openEntry: null }, effect: "NONE" };

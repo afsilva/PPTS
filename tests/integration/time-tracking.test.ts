@@ -7,8 +7,10 @@ import {
   clockIn,
   clockOut,
   setAvailable,
+  setPresence,
   switchWork,
 } from "../../src/modules/time-tracking/service";
+import { correctOwnTime } from "../../src/modules/time-tracking/corrections";
 import type { Actor } from "../../src/modules/authorization/policy";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -140,6 +142,18 @@ test("available updates non-working presence and audits", async () => {
   );
 });
 
+test("off-duty clears available presence and audits", async () => {
+  await setPresence(actor, "OFF_DUTY", "untrusted ignored message");
+  const presence = await db.presence.findUniqueOrThrow({ where: { userId } });
+  assert.equal(presence.state, "OFF_DUTY");
+  assert.equal(presence.projectId, null);
+  assert.equal(presence.message, "");
+  assert.equal(
+    await db.auditEvent.count({ where: { actorId: userId, action: "PRESENCE_OFF_DUTY" } }),
+    1,
+  );
+});
+
 test("concurrent available and clock-in preserve a consistent snapshot", async () => {
   const results = await Promise.allSettled([
     setAvailable(actor, "Ready"),
@@ -159,6 +173,97 @@ test("concurrent available and clock-in preserve a consistent snapshot", async (
     results.some((result) => result.status === "fulfilled"),
     true,
   );
+});
+
+test("owner corrects completed time with audit, stale and overlap protection", async () => {
+  const first = await db.timeEntry.create({
+    data: {
+      userId,
+      projectId: projectA,
+      workCodeId: workCode,
+      startedAt: new Date("2026-10-01T08:00:00Z"),
+      endedAt: new Date("2026-10-01T09:00:00Z"),
+    },
+  });
+  const second = await db.timeEntry.create({
+    data: {
+      userId,
+      projectId: projectA,
+      workCodeId: workCode,
+      startedAt: new Date("2026-10-01T10:00:00Z"),
+      endedAt: new Date("2026-10-01T11:00:00Z"),
+    },
+  });
+  const corrected = await correctOwnTime(actor, {
+    id: first.id,
+    version: 1,
+    startedAt: "2026-10-01T08:15",
+    endedAt: "2026-10-01T09:15",
+    note: "Reviewed",
+  });
+  assert.equal(corrected.version, 2);
+  assert.equal(corrected.note, "Reviewed");
+  assert.equal(
+    await db.auditEvent.count({
+      where: { actorId: userId, action: "TIME_CORRECTED", resourceId: first.id },
+    }),
+    1,
+  );
+  await assert.rejects(
+    () =>
+      correctOwnTime(actor, {
+        id: first.id,
+        version: 1,
+        startedAt: "2026-10-01T08:00",
+        endedAt: "2026-10-01T09:00",
+        note: "Stale",
+      }),
+    /stale_version/,
+  );
+  await assert.rejects(
+    () =>
+      correctOwnTime(actor, {
+        id: first.id,
+        version: 2,
+        startedAt: "2026-10-01T09:30",
+        endedAt: "2026-10-01T10:30",
+        note: "Overlap",
+      }),
+    /overlapping_time/,
+  );
+  const other = await db.user.create({
+    data: {
+      issuer: "https://integration.invalid",
+      subject: `other-${marker}`,
+      username: `other-${marker}`,
+      displayName: "Other Worker",
+      email: `other-${marker}@integration.invalid`,
+      roles: { create: { role: "EMPLOYEE" } },
+    },
+  });
+  const foreignCorrection = {
+    id: first.id,
+    version: 2,
+    startedAt: "2026-10-01T08:00",
+    endedAt: "2026-10-01T09:00",
+    note: "IDOR",
+  };
+  await assert.rejects(
+    () => correctOwnTime({ userId: other.id, roles: ["EMPLOYEE"] }, foreignCorrection),
+    /forbidden/,
+  );
+  await assert.rejects(
+    () => correctOwnTime({ userId: other.id, roles: ["MANAGER"] }, foreignCorrection),
+    /forbidden/,
+  );
+  await assert.rejects(
+    () => correctOwnTime({ userId: other.id, roles: ["ADMINISTRATOR"] }, foreignCorrection),
+    /forbidden/,
+  );
+  await db.auditEvent.deleteMany({ where: { actorId: other.id } });
+  await db.userRole.deleteMany({ where: { userId: other.id } });
+  await db.user.delete({ where: { id: other.id } });
+  await db.timeEntry.deleteMany({ where: { id: { in: [first.id, second.id] } } });
 });
 
 test("unassigned projects fail closed without creating time or audit rows", async () => {

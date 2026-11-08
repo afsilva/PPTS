@@ -9,6 +9,10 @@ export type AuthorizationRequest =
   | { capability: "MANAGE_PROJECT"; scoped: boolean }
   | { capability: "MANAGE_CLIENTS_AND_CODES" }
   | { capability: "MANAGE_PEOPLE_AND_ROLES" }
+  | { capability: "READ_PROJECT"; scoped: boolean }
+  | { capability: "WRITE_PROJECT_LOG"; scoped: boolean }
+  | { capability: "READ_REPORTS"; scoped: boolean }
+  | { capability: "CORRECT_TIME"; targetUserId: string; scoped: boolean }
   | { capability: "READ_AUDIT"; scoped: boolean };
 
 const has = (actor: Actor, role: PptsRole) => actor.roles.includes(role);
@@ -33,6 +37,20 @@ export function can(actor: Actor, request: AuthorizationRequest): boolean {
     case "MANAGE_CLIENTS_AND_CODES":
     case "MANAGE_PEOPLE_AND_ROLES":
       return has(actor, "ADMINISTRATOR");
+    case "READ_PROJECT":
+      return has(actor, "ADMINISTRATOR") || request.scoped;
+    case "WRITE_PROJECT_LOG":
+      return !has(actor, "AUDITOR") && (has(actor, "ADMINISTRATOR") || request.scoped);
+    case "READ_REPORTS":
+      return (
+        has(actor, "ADMINISTRATOR") ||
+        has(actor, "AUDITOR") ||
+        (has(actor, "MANAGER") && request.scoped)
+      );
+    case "CORRECT_TIME":
+      // Legacy parity: every working user fixes only their own time directly.
+      // Role privilege and project scope never authorize cross-user correction.
+      return !has(actor, "AUDITOR") && actor.userId === request.targetUserId;
     case "READ_AUDIT":
       return has(actor, "ADMINISTRATOR") || (has(actor, "AUDITOR") && request.scoped);
     default:

@@ -106,12 +106,38 @@ if grep -q '"id"' "$WORK/s.json" || grep -q '"roles"' "$WORK/s.json" || grep -q 
 else
   check "session endpoint omits internal identifiers and roles" 0
 fi
+code=$(curl -s -o "$WORK/report.html" -w '%{http_code}' -b "$JAR_A" "$APP/reports")
+check "administrator can open monthly reports" $([ "$code" = 200 ] && grep -q 'Export protected CSV' "$WORK/report.html"; echo $?)
+year=$(date -u +%Y); month=$(date -u +%m)
+code=$(curl -s -D "$WORK/report-headers" -o "$WORK/report.csv" -w '%{http_code}' -b "$JAR_A" "$APP/api/reports/monthly.csv?year=$year&month=$month")
+check "administrator can export protected monthly CSV" $([ "$code" = 200 ] && grep -qi 'content-type: text/csv' "$WORK/report-headers" && grep -q 'Organization time zone' "$WORK/report.csv"; echo $?)
+code=$(curl -s -o "$WORK/audit.html" -w '%{http_code}' -b "$JAR_A" "$APP/audit")
+check "administrator can open bounded audit events" $([ "$code" = 200 ] && grep -q 'Security audit events' "$WORK/audit.html"; echo $?)
 
 # --- 3. Time tracking and business authorization -----------------------------
 DB_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E '(^|/)ppts-db-[0-9]+$' || true)
 if [ -n "$DB_CONTAINER" ]; then
   # Normalize a prior interrupted run through the public business route.
   curl -s -o /dev/null -b "$JAR_A" --data '' -H "Origin: $APP" "$APP/api/time/clock-out"
+  # Exercise administrator-only profile/account lifecycle through public routes.
+  "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c "UPDATE \"Person\" SET \"userId\"=NULL WHERE \"displayName\"='E2E Linked Profile'; DELETE FROM \"Person\" WHERE \"displayName\"='E2E Linked Profile'" >/dev/null
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data 'submissionId=00000000-0000-4000-8000-0000000000e2&kind=EMPLOYEE&displayName=E2E%20Linked%20Profile' -H "Origin: http://evil.example" "$APP/api/people")
+  check "person creation rejects a foreign Origin" $([ "$code" = 403 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data 'submissionId=00000000-0000-4000-8000-0000000000e2&kind=EMPLOYEE&displayName=E2E%20Linked%20Profile' -H "Origin: $APP" "$APP/api/people")
+  check "administrator can create an employee profile" $([ "$code" = 303 ]; echo $?)
+  profile_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT id FROM \"Person\" WHERE \"displayName\"='E2E Linked Profile' LIMIT 1")
+  alex_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "User" WHERE username='\''alex.admin'\'' LIMIT 1')
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "id=$profile_id&userId=$alex_id&version=1" -H "Origin: $APP" "$APP/api/people/link")
+  check "administrator can link an active login to an employee profile" $([ "$code" = 303 ]; echo $?)
+  curl -s -b "$JAR_A" "$APP/people" > "$WORK/people-linked.html"
+  check "people UI displays the linked login" $(grep -q 'E2E Linked Profile' "$WORK/people-linked.html" && grep -q 'alex.admin' "$WORK/people-linked.html"; echo $?)
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_A" --data "id=$profile_id&userId=$alex_id&version=1" -H "Origin: $APP" "$APP/api/people/link")
+  check "stale identity link fails closed" $(printf '%s' "$location" | grep -q 'result=stale'; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "id=$profile_id&version=2" -H "Origin: $APP" "$APP/api/people/unlink")
+  check "administrator can unlink a profile without deleting its login" $([ "$code" = 303 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "id=$profile_id&version=3" -H "Origin: $APP" "$APP/api/people/archive")
+  check "administrator can archive the unlinked profile" $([ "$code" = 303 ]; echo $?)
+
   project_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "Project" WHERE name = '\''PPTS Modernization'\'' AND "archivedAt" IS NULL LIMIT 1')
   # Keep one active project deliberately outside Casey's scope to prove denial
   # after the administrator grants access to the seeded project.
@@ -147,12 +173,17 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" -X POST -H "Origin: ht
 check "logout rejects a foreign Origin (CSRF guard)" $([ "$code" = 403 ]; echo $?)
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
 check "session is still valid before logout" $([ "$code" = 200 ]; echo $?)
-# --data '' initiates POST but permits the app's 303 to switch to GET for
-# Keycloak's RP-initiated logout endpoint, matching browser behavior.
-curl -s -L -c "$JAR_A" -b "$JAR_A" -o /dev/null -w '%{http_code}' --data '' -H "Origin: $APP" "$APP/auth/logout" > "$WORK/logout-code"
-check "logout succeeds with the app Origin" $([ "$(cat "$WORK/logout-code")" = "200" ]; echo $?)
+# The POST remains same-origin so CSP form-action does not block the browser.
+# A completion page then links to a one-time provider-logout route, whose fresh
+# top-level navigation is permitted by the strict CSP.
+location=$(curl -s -c "$JAR_A" -b "$JAR_A" -o /dev/null -w '%{redirect_url}' --data '' -H "Origin: $APP" "$APP/auth/logout")
+check "logout POST lands on the same-origin completion page" $(printf '%s' "$location" | grep -q "$APP/auth/logout/complete"; echo $?)
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
 check "session is revoked after logout" $([ "$code" = 401 ]; echo $?)
+curl -s -b "$JAR_A" "$location" | grep -q 'Continue sign out'
+check "logout completion offers provider sign-out" $?
+curl -s -L -c "$JAR_A" -b "$JAR_A" -o /dev/null -w '%{http_code}' "$APP/auth/logout/provider" > "$WORK/logout-code"
+check "logout provider navigation completes" $([ "$(cat "$WORK/logout-code")" = "200" ]; echo $?)
 
 # After an RP-initiated logout the Keycloak SSO session must be gone, so
 # re-authenticating must present the login form rather than auto-login.
@@ -176,6 +207,12 @@ check "employee login lands on the dashboard" $(printf '%s' "$final_url" | grep 
 check "employee login returns 200" $([ "$final_code" = 200 ]; echo $?)
 curl -s -b "$JAR_B" "$APP/api/auth/session" | grep -q '"displayName":"Casey Lee"'
 check "employee session reports the employee identity" $?
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" "$APP/api/reports/monthly.csv?year=2026&month=1")
+check "employee report export fails closed" $([ "$code" = 403 ]; echo $?)
+location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" "$APP/audit")
+check "employee audit UI fails closed" $(printf '%s' "$location" | grep -q "$APP/"; echo $?)
+location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data 'id=00000000-0000-4000-8000-000000000001&userId=00000000-0000-4000-8000-000000000002&version=1' -H "Origin: $APP" "$APP/api/people/link")
+check "employee identity-link administration fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
 if [ -n "${project_id:-}" ] && [ -n "${denied_project_id:-}" ] && [ -n "${engineering_id:-}" ]; then
   location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "projectId=$denied_project_id&workCodeId=$engineering_id&message=Must%20be%20denied" -H "Origin: $APP" "$APP/api/time/clock-in")
   check "unassigned employee clock-in fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)

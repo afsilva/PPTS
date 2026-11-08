@@ -24,6 +24,7 @@
       "protocol": "openid-connect",
       "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email"],
       "publicClient": true,
+      "fullScopeAllowed": false,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "implicitFlowEnabled": false,

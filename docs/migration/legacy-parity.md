@@ -1,0 +1,47 @@
+# Legacy PPTS functional parity
+
+**Source inspected:** `original/ppts-2.0alpha3.tar` (May 2001) · **Reviewed:** 2026-11-08
+
+The archive is a Perl CGI/MySQL application with eight logical tables and three connected areas: employee presence/time clock, project knowledge (metadata, journal, documents), and administration/monthly reports. This document is the modernization acceptance checklist. “Parity” means preserving useful business outcomes, not reproducing insecure defects.
+
+## Legacy behavior inventory
+
+| Legacy capability                                                  | Modern status            | Deliberate modernization                                                                                                          |
+| ------------------------------------------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Employee status board, message, updated time, current project      | Implemented              | Session identity; bounded output; normalized presence state                                                                       |
+| Clock in/out, project/work-code switch, active entry               | Implemented              | Transactional state machine, server timestamps, one-open-entry constraint                                                         |
+| Available/off-duty states                                          | Implemented              | Explicit states instead of special project ID `1`                                                                                 |
+| Own recent time and totals                                         | Implemented              | Correct interval clipping rather than legacy duration bugs                                                                        |
+| Keycloak login and roles                                           | Implemented              | OIDC code + PKCE; revocable local sessions; deny-by-default authorization                                                         |
+| Project membership                                                 | Implemented              | Server-verified scope; legacy had no access control                                                                               |
+| Client/project-status/project/work-code creation and archive/state | Implemented baseline     | Administrator-only, validated, audited, relational integrity                                                                      |
+| Current/historical monthly report by client/project/person         | Implemented              | Dynamic year, IANA timezone/DST clipping, stable user identity, scoped HTML and formula-safe CSV export                           |
+| Worker/contact profiles and people lifecycle                       | Implemented              | Administrator-only records, optional one-to-one active-login link for employees, archive and optimistic concurrency               |
+| Full project technical/contact/estimate metadata                   | Implemented              | Scoped editor with constrained employee coder and contact selections                                                              |
+| Project journal                                                    | Implemented              | Authenticated immutable author, scoped read/write, and bounded plain text                                                         |
+| Project documents                                                  | Metadata foundation only | No unsafe filesystem upload. Requires private object storage, quarantine, validation, scanner, quotas, authorized download/delete |
+| Own completed-time correction                                      | Implemented              | Immediate own-only edit, matching `REMOTE_USER` legacy behavior; adds concurrency, interval/overlap validation, and atomic audit  |
+| Legacy import                                                      | Not implemented          | Dump contains schema but no data; ETL must detect orphans and produce reconciliation totals                                       |
+
+## Preserved business rules
+
+- Only active, non-archived projects and active work codes may receive new time.
+- Starting work opens an entry; switching atomically closes it and opens another; stopping closes it and clears the current project.
+- Reports group by client/project/person and hide empty projects.
+- Employees and contacts remain conceptually distinct; project coder must ultimately be an employee while server contacts may be contacts.
+- Archive is preferred to destructive deletion wherever historical time or audit data exists.
+- A user may directly correct only their own completed time. The legacy `fixTime.cgi` filters by `REMOTE_USER`, updates immediately, and explicitly instructs users to contact the owner rather than edit another person's time; it has no approval workflow.
+
+## Corrected legacy defects
+
+The port intentionally does **not** preserve: blank MySQL root password, SQL string concatenation, browser-trusted user IDs, project ID `1` as “off clock,” zero dates, hard-coded report years, month allocation solely by end time, ignored multi-day duration, `60 minutes` formatting, public upload directories, path-derived project folders, hard deletes that orphan rows, unauthenticated admin URLs, or hidden-field journal attribution.
+
+## Remaining acceptance work
+
+1. Approve the production `ORGANIZATION_TIME_ZONE` value; UTC remains the safe local default and DST/month-boundary fixtures are automated.
+2. Complete Keycloak role lifecycle and production synchronization; account-to-person linking is now administrator-only, one-to-one, and limited to active accounts and employee profiles.
+3. Add secure object storage and malware-scanning pipeline before enabling documents.
+4. Build idempotent legacy ETL with dry run, orphan report, document hashes, and source/target reconciliation.
+5. Expand browser E2E coverage for every catalog lifecycle operation and add legacy report reconciliation fixtures.
+
+The original archive remains an unmodified historical input. It must never be copied into a runtime image or served by the application.

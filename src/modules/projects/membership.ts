@@ -4,7 +4,7 @@ import { getDatabase } from "@/db/client";
 import type { Actor } from "@/modules/authorization/policy";
 import { requireAllowed } from "@/modules/authorization/policy";
 import { BusinessError } from "@/modules/business/errors";
-import type { ProjectMembershipInput } from "./schemas";
+import type { ProjectMembershipInput, ProjectMemberRemoveInput } from "./schemas";
 
 export async function assignProjectMember(actor: Actor, input: ProjectMembershipInput) {
   return getDatabase().$transaction(
@@ -49,6 +49,47 @@ export async function assignProjectMember(actor: Actor, input: ProjectMembership
         },
       });
       return membership;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function removeProjectMember(actor: Actor, input: ProjectMemberRemoveInput) {
+  return getDatabase().$transaction(
+    async (tx) => {
+      const actorScope = await tx.projectMember.findUnique({
+        where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
+        select: { role: true },
+      });
+      try {
+        requireAllowed(actor, {
+          capability: "MANAGE_PROJECT",
+          scoped: actorScope?.role === "MANAGER",
+        });
+      } catch {
+        throw new BusinessError("FORBIDDEN");
+      }
+      const membership = await tx.projectMember.findUnique({
+        where: { projectId_userId: input },
+        select: { role: true },
+      });
+      if (!membership) throw new BusinessError("INVALID_TARGET");
+      if (input.userId === actor.userId) throw new BusinessError("INVALID_TARGET");
+      const openTime = await tx.timeEntry.count({
+        where: { projectId: input.projectId, userId: input.userId, endedAt: null },
+      });
+      if (openTime) throw new BusinessError("ENTITY_IN_USE");
+      await tx.projectMember.delete({ where: { projectId_userId: input } });
+      await tx.auditEvent.create({
+        data: {
+          actorId: actor.userId,
+          action: "PROJECT_MEMBER_REMOVED",
+          resourceType: "ProjectMember",
+          resourceId: `${input.projectId}:${input.userId}`,
+          outcome: "SUCCESS",
+          metadata: { previousProjectRole: membership.role },
+        },
+      });
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );

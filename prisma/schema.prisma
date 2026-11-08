@@ -25,6 +25,16 @@ enum ProjectRole {
   MANAGER
 }
 
+enum PersonKind {
+  EMPLOYEE
+  CONTACT
+}
+
+enum DocumentStatus {
+  AVAILABLE
+  REJECTED
+}
+
 model User {
   id          String       @id @default(uuid()) @db.Uuid
   issuer      String
@@ -39,6 +49,9 @@ model User {
   memberships ProjectMember[]
   presence    Presence?
   timeEntries TimeEntry[]
+  person      Person?
+  projectLogs ProjectLog[]
+  documents   ProjectDocument[]
   auditEvents AuditEvent[] @relation("AuditActor")
   sessions    Session[]
 
@@ -69,12 +82,42 @@ model Session {
   @@index([expiresAt])
 }
 
+model Person {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String?    @unique @db.Uuid
+  kind          PersonKind @default(EMPLOYEE)
+  displayName   String     @db.VarChar(160)
+  createdById   String?    @db.Uuid
+  submissionId String?    @db.Uuid
+  title         String     @default("") @db.VarChar(120)
+  address       String     @default("") @db.VarChar(500)
+  workPhone     String     @default("") @db.VarChar(40)
+  homePhone     String     @default("") @db.VarChar(40)
+  mobilePhone   String     @default("") @db.VarChar(40)
+  legacyIm      String     @default("") @db.VarChar(80)
+  birthdayMonth Int?
+  birthdayDay   Int?
+  archivedAt    DateTime?  @db.Timestamptz(3)
+  version       Int        @default(1)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  managedProjects     Project[] @relation("ProjectCoder")
+  developmentProjects Project[] @relation("ProjectDevelopmentContact")
+  productionProjects  Project[] @relation("ProjectProductionContact")
+
+  @@unique([createdById, submissionId])
+  @@index([kind, displayName])
+  @@index([archivedAt])
+}
+
 model Client {
   id         String    @id @default(uuid()) @db.Uuid
   name       String    @unique
   archivedAt DateTime? @db.Timestamptz(3)
   createdAt  DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+  version    Int       @default(1)
   projects   Project[]
 }
 
@@ -82,6 +125,7 @@ model ProjectStatus {
   id          String    @id @default(uuid()) @db.Uuid
   name        String    @unique
   description String    @default("")
+  version     Int       @default(1)
   projects    Project[]
 }
 
@@ -92,17 +136,41 @@ model Project {
   name             String
   description      String          @default("")
   billingRateCents Int?
+  version          Int             @default(1)
+  languages        String          @default("") @db.VarChar(500)
+  modules          String          @default("") @db.VarChar(500)
+  extras           String          @default("") @db.VarChar(1000)
+  developmentServerName String      @default("") @db.VarChar(255)
+  developmentServerPath String      @default("") @db.VarChar(500)
+  productionServerName  String      @default("") @db.VarChar(255)
+  productionServerPath  String      @default("") @db.VarChar(500)
+  estimatedDesignMinutes      Int?
+  estimatedCodingMinutes      Int?
+  estimatedManagementMinutes  Int?
+  estimatedTestingMinutes     Int?
+  estimatedMaintenanceMinutes Int?
+  coderId              String?         @db.Uuid
+  developmentContactId String?         @db.Uuid
+  productionContactId  String?         @db.Uuid
   archivedAt       DateTime?       @db.Timestamptz(3)
   createdAt        DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
   client           Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   status           ProjectStatus   @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  coder             Person?        @relation("ProjectCoder", fields: [coderId], references: [id], onDelete: SetNull)
+  developmentContact Person?       @relation("ProjectDevelopmentContact", fields: [developmentContactId], references: [id], onDelete: SetNull)
+  productionContact Person?        @relation("ProjectProductionContact", fields: [productionContactId], references: [id], onDelete: SetNull)
   members          ProjectMember[]
   presence         Presence[]
   timeEntries      TimeEntry[]
+  logs             ProjectLog[]
+  documents        ProjectDocument[]
 
   @@unique([clientId, name])
   @@index([statusId])
+  @@index([coderId])
+  @@index([developmentContactId])
+  @@index([productionContactId])
 }
 
 model ProjectMember {
@@ -121,6 +189,7 @@ model WorkCode {
   name        String      @unique
   description String      @default("")
   active      Boolean     @default(true)
+  version     Int         @default(1)
   timeEntries TimeEntry[]
 }
 
@@ -155,6 +224,35 @@ model TimeEntry {
 
   @@index([userId, startedAt])
   @@index([projectId, startedAt])
+}
+
+model ProjectLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  authorId  String   @db.Uuid
+  body      String   @db.VarChar(5000)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+}
+
+model ProjectDocument {
+  id           String         @id @default(uuid()) @db.Uuid
+  projectId    String         @db.Uuid
+  uploadedById String         @db.Uuid
+  objectKey    String         @unique @db.VarChar(255)
+  originalName String         @db.VarChar(255)
+  mediaType    String         @db.VarChar(100)
+  sizeBytes    Int
+  sha256       String         @db.Char(64)
+  status       DocumentStatus @default(AVAILABLE)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
 }
 
 model AuditEvent {

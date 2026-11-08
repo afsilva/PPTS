@@ -164,7 +164,11 @@ validate_ports() {
 }
 
 compose() {
-  PPTS_PORT="$PPTS_PORT" KEYCLOAK_PORT="$KEYCLOAK_PORT" "$PODMAN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  # Podman Compose intentionally delegates to the installed Compose provider.
+  # The banner is informational, not an application warning; suppress only
+  # that documented wrapper notice while retaining all provider diagnostics.
+  PPTS_PORT="$PPTS_PORT" KEYCLOAK_PORT="$KEYCLOAK_PORT" PODMAN_COMPOSE_WARNING_LOGS=false \
+    "$PODMAN" compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
 wait_for_app() {

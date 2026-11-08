@@ -3,6 +3,8 @@ import { readSession } from "@/auth/session";
 import { displayRole } from "@/auth/roles";
 import { can, type Actor } from "@/modules/authorization/policy";
 import { getDashboard } from "@/modules/time-tracking/service";
+import { getCatalog } from "@/modules/catalog/service";
+import { MutationForm, SubmitButton } from "@/app/components/submit-button";
 import styles from "./page.module.css";
 
 function Icon({ children }: { children: React.ReactNode }) {
@@ -44,6 +46,10 @@ function resultMessage(result?: string) {
       return "Choose a different project or work code.";
     case "not-allowed":
       return "That project or work code is not available to your account.";
+    case "stale":
+      return "This record changed in another session. Reload and try again.";
+    case "in-use":
+      return "This record is still assigned and cannot be archived.";
     case "failed":
       return "The update could not be completed. Please try again.";
     default:
@@ -63,6 +69,8 @@ export default async function Home({
     roles: session.user.roles.map(({ role }) => role),
   };
   const dashboard = await getDashboard(actor);
+  const canManageCatalog = can(actor, { capability: "MANAGE_CLIENTS_AND_CODES" });
+  const catalog = canManageCatalog ? await getCatalog(actor) : null;
   const { result } = await searchParams;
   const feedback = resultMessage(result);
   const displayName = dashboard.user.displayName;
@@ -96,15 +104,32 @@ export default async function Home({
           <a className={styles.navActive} href="#overview" aria-current="page">
             <Icon>⌂</Icon>Overview
           </a>
-          <a href="#time">
+          <a href="/time">
             <Icon>◷</Icon>My time
           </a>
           <a href="#projects">
             <Icon>◇</Icon>Projects
           </a>
-          <a href="#people">
+          <a href={actor.roles.includes("ADMINISTRATOR") ? "/people" : "#people"}>
             <Icon>◎</Icon>People
           </a>
+          {actor.roles.includes("ADMINISTRATOR") && (
+            <a href="/catalog">
+              <Icon>⚙</Icon>Catalog
+            </a>
+          )}
+          {(actor.roles.includes("MANAGER") ||
+            actor.roles.includes("ADMINISTRATOR") ||
+            actor.roles.includes("AUDITOR")) && (
+            <a href="/reports">
+              <Icon>▤</Icon>Reports
+            </a>
+          )}
+          {actor.roles.includes("ADMINISTRATOR") && (
+            <a href="/audit">
+              <Icon>☷</Icon>Audit events
+            </a>
+          )}
         </nav>
         <div className={styles.sidebarFooter}>
           <div className={styles.profile}>
@@ -113,11 +138,17 @@ export default async function Home({
               <strong>{displayName}</strong>
               <small>{displayRole(actor.roles)}</small>
             </span>
-            <form action="/auth/logout" method="post">
-              <button aria-label="Sign out" title="Sign out">
-                ↪
-              </button>
-            </form>
+            <MutationForm action="/auth/logout" method="post">
+              <SubmitButton
+                className={styles.logoutButton}
+                ariaLabel="Sign out"
+                title="Sign out"
+                pendingLabel="Signing out…"
+              >
+                <span aria-hidden="true">↪</span>
+                <span className={styles.logoutLabel}>Sign out</span>
+              </SubmitButton>
+            </MutationForm>
           </div>
         </div>
       </aside>
@@ -169,11 +200,11 @@ export default async function Home({
                 </p>
                 {canChangeClock && (
                   <div className={styles.timerActions}>
-                    <form action="/api/time/clock-out" method="post">
-                      <button className={styles.stopButton}>
+                    <MutationForm action="/api/time/clock-out" method="post">
+                      <SubmitButton className={styles.stopButton} pendingLabel="Stopping…">
                         <span aria-hidden="true">■</span> Stop timer
-                      </button>
-                    </form>
+                      </SubmitButton>
+                    </MutationForm>
                   </div>
                 )}
               </>
@@ -217,7 +248,7 @@ export default async function Home({
               <p>Only active projects assigned to you and active work codes are available.</p>
             </div>
             {dashboard.projects.length > 0 && dashboard.workCodes.length > 0 ? (
-              <form
+              <MutationForm
                 className={styles.clockForm}
                 action={dashboard.current ? "/api/time/switch" : "/api/time/clock-in"}
                 method="post"
@@ -246,10 +277,13 @@ export default async function Home({
                   Status message
                   <input name="message" maxLength={280} defaultValue={dashboard.user.message} />
                 </label>
-                <button className={styles.primaryButton}>
+                <SubmitButton
+                  className={styles.primaryButton}
+                  pendingLabel={dashboard.current ? "Switching…" : "Starting…"}
+                >
                   {dashboard.current ? "Switch task" : "Start timer"}
-                </button>
-              </form>
+                </SubmitButton>
+              </MutationForm>
             ) : (
               <p className={styles.emptyState}>
                 No active project assignment or work code is available. Ask an administrator to
@@ -257,15 +291,186 @@ export default async function Home({
               </p>
             )}
             {!dashboard.current && (
-              <form className={styles.availableForm} action="/api/time/available" method="post">
-                <input type="hidden" name="state" value="AVAILABLE" />
-                <label>
-                  Availability message
-                  <input name="message" maxLength={280} defaultValue={dashboard.user.message} />
-                </label>
-                <button className={styles.secondaryButton}>Mark available</button>
-              </form>
+              <div className={styles.presenceActions}>
+                <MutationForm
+                  className={styles.availableForm}
+                  action="/api/time/available"
+                  method="post"
+                >
+                  <input type="hidden" name="state" value="AVAILABLE" />
+                  <label>
+                    Availability message
+                    <input name="message" maxLength={280} defaultValue={dashboard.user.message} />
+                  </label>
+                  <SubmitButton className={styles.secondaryButton} pendingLabel="Updating…">
+                    Mark available
+                  </SubmitButton>
+                </MutationForm>
+                {dashboard.user.presence !== "OFF_DUTY" && (
+                  <MutationForm action="/api/time/available" method="post">
+                    <input type="hidden" name="state" value="OFF_DUTY" />
+                    <input type="hidden" name="message" value="" />
+                    <SubmitButton className={styles.secondaryButton} pendingLabel="Updating…">
+                      Go off duty
+                    </SubmitButton>
+                  </MutationForm>
+                )}
+              </div>
             )}
+          </section>
+        )}
+
+        {catalog && (
+          <section className={styles.catalogPanel} aria-labelledby="catalog-title">
+            <div>
+              <h2 id="catalog-title">Administration</h2>
+              <p>Manage the clients, statuses, projects, and work codes used by PPTS.</p>
+            </div>
+            <div className={styles.catalogForms}>
+              <MutationForm action="/api/catalog/clients" method="post">
+                <h3>Add client</h3>
+                <label>
+                  Name
+                  <input name="name" maxLength={120} required />
+                </label>
+                <SubmitButton className={styles.primaryButton} pendingLabel="Adding client…">
+                  Add client
+                </SubmitButton>
+              </MutationForm>
+              <MutationForm action="/api/catalog/statuses" method="post">
+                <h3>Add project status</h3>
+                <label>
+                  Name
+                  <input name="name" maxLength={120} required />
+                </label>
+                <label>
+                  Description
+                  <input name="description" maxLength={2000} />
+                </label>
+                <SubmitButton className={styles.primaryButton} pendingLabel="Adding status…">
+                  Add status
+                </SubmitButton>
+              </MutationForm>
+              <MutationForm action="/api/catalog/work-codes" method="post">
+                <h3>Add work code</h3>
+                <label>
+                  Name
+                  <input name="name" maxLength={120} required />
+                </label>
+                <label>
+                  Description
+                  <input name="description" maxLength={2000} />
+                </label>
+                <SubmitButton className={styles.primaryButton} pendingLabel="Adding code…">
+                  Add code
+                </SubmitButton>
+              </MutationForm>
+              <MutationForm action="/api/catalog/projects" method="post">
+                <h3>Add project</h3>
+                <label>
+                  Client
+                  <select name="clientId" required>
+                    {catalog.clients
+                      .filter((item) => !item.archivedAt)
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select name="statusId" required>
+                    {catalog.statuses.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Name
+                  <input name="name" maxLength={120} required />
+                </label>
+                <label>
+                  Description
+                  <input name="description" maxLength={2000} />
+                </label>
+                <label>
+                  Billing rate (per hour)
+                  <input name="billingRate" inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" />
+                </label>
+                <SubmitButton className={styles.primaryButton} pendingLabel="Adding project…">
+                  Add project
+                </SubmitButton>
+              </MutationForm>
+            </div>
+            <div className={styles.catalogLists}>
+              <div>
+                <h3>Clients</h3>
+                {catalog.clients.map((item) => (
+                  <div key={item.id}>
+                    <span>
+                      {item.name}
+                      {item.archivedAt ? " (archived)" : ""}
+                    </span>
+                    {!item.archivedAt && (
+                      <MutationForm action="/api/catalog/archive" method="post">
+                        <input type="hidden" name="entity" value="client" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <SubmitButton
+                          pendingLabel="Archiving…"
+                          confirmMessage="Archive this record?"
+                        >
+                          Archive
+                        </SubmitButton>
+                      </MutationForm>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h3>Projects</h3>
+                {catalog.projects.map((item) => (
+                  <div key={item.id}>
+                    <span>
+                      {item.client.name} · {item.name} · {item.status.name}
+                      {item.archivedAt ? " (archived)" : ""}
+                    </span>
+                    {!item.archivedAt && (
+                      <MutationForm action="/api/catalog/archive" method="post">
+                        <input type="hidden" name="entity" value="project" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <SubmitButton
+                          pendingLabel="Archiving…"
+                          confirmMessage="Archive this record?"
+                        >
+                          Archive
+                        </SubmitButton>
+                      </MutationForm>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h3>Work codes</h3>
+                {catalog.workCodes.map((item) => (
+                  <div key={item.id}>
+                    <span>
+                      {item.name} · {item.active ? "active" : "inactive"}
+                    </span>
+                    <MutationForm action="/api/catalog/work-codes/state" method="post">
+                      <input type="hidden" name="id" value={item.id} />
+                      <input type="hidden" name="active" value={item.active ? "false" : "true"} />
+                      <SubmitButton pendingLabel="Updating…">
+                        {item.active ? "Deactivate" : "Activate"}
+                      </SubmitButton>
+                    </MutationForm>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
@@ -278,7 +483,11 @@ export default async function Home({
                 project&apos;s members.
               </p>
             </div>
-            <form className={styles.membershipForm} action="/api/projects/members" method="post">
+            <MutationForm
+              className={styles.membershipForm}
+              action="/api/projects/members"
+              method="post"
+            >
               <label>
                 Project
                 <select name="projectId" required>
@@ -306,8 +515,10 @@ export default async function Home({
                   <option value="MANAGER">Manager</option>
                 </select>
               </label>
-              <button className={styles.primaryButton}>Assign access</button>
-            </form>
+              <SubmitButton className={styles.primaryButton} pendingLabel="Assigning…">
+                Assign access
+              </SubmitButton>
+            </MutationForm>
           </section>
         )}
 
@@ -387,7 +598,9 @@ export default async function Home({
                       {project.name.slice(0, 1).toUpperCase()}
                     </span>
                     <div>
-                      <strong>{project.name}</strong>
+                      <strong>
+                        <a href={`/projects/${project.id}`}>{project.name}</a>
+                      </strong>
                       <small>{project.clientName}</small>
                     </div>
                   </div>

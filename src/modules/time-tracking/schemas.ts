@@ -13,8 +13,17 @@ export const clockInSchema = z.object({
 export const switchSchema = clockInSchema;
 
 export const presenceSchema = z.object({
-  state: z.literal("AVAILABLE"),
+  state: z.enum(["AVAILABLE", "OFF_DUTY"]),
   message: message.default(""),
 });
 
+export const timeCorrectionSchema = z.object({
+  id: uuid,
+  version: z.coerce.number().int().positive(),
+  startedAt: z.string().trim().max(16),
+  endedAt: z.string().trim().max(16),
+  note: z.string().trim().max(2000).default(""),
+});
+
 export type ClockSelection = z.infer<typeof clockInSchema>;
+export type TimeCorrectionInput = z.infer<typeof timeCorrectionSchema>;

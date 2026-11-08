@@ -6,6 +6,10 @@ export class BusinessError extends Error {
     | "NOT_CLOCKED_IN"
     | "NO_CHANGE"
     | "INVALID_TARGET"
+    | "STALE_VERSION"
+    | "ENTITY_IN_USE"
+    | "INVALID_INTERVAL"
+    | "OVERLAPPING_TIME"
     | "PAYLOAD_TOO_LARGE";
 
   constructor(code: BusinessError["code"]) {

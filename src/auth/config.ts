@@ -20,10 +20,22 @@ export function getAuthConfig() {
     NODE_ENV: process.env.NODE_ENV,
   });
   const origin = new URL(config.APP_ORIGIN);
-  const insecureLoopback =
-    origin.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(origin.hostname);
-  if (origin.protocol !== "https:" && !insecureLoopback)
-    throw new Error("Insecure authentication is allowed only on loopback.");
+  const issuer = new URL(config.OIDC_ISSUER);
+  const internalIssuer = new URL(config.OIDC_INTERNAL_ISSUER ?? config.OIDC_ISSUER);
+  const isSecureOrLoopback = (url: URL) =>
+    url.protocol === "https:" ||
+    (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
+  // The production-built local container reaches Keycloak over its private
+  // Compose network. Cleartext internal routing is allowed only when the
+  // browser-facing issuer itself is loopback HTTP; an HTTPS deployment must
+  // also encrypt its internal OIDC channel.
+  const developmentInternalHttp = issuer.protocol === "http:" && isSecureOrLoopback(issuer);
+  if (
+    !isSecureOrLoopback(origin) ||
+    !isSecureOrLoopback(issuer) ||
+    (!isSecureOrLoopback(internalIssuer) && !developmentInternalHttp)
+  )
+    throw new Error("Insecure authentication is allowed only in loopback development.");
   return {
     ...config,
     secureCookies: origin.protocol === "https:",

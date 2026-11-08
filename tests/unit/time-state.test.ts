@@ -64,12 +64,17 @@ test("switch changes project or work code atomically and rejects no-op", () => {
   );
 });
 
-test("available is a non-working modern state", () => {
+test("available and off-duty are explicit non-working states", () => {
   assert.deepEqual(transitionClock(off, { type: "SET_AVAILABLE" }), {
     next: { presence: "AVAILABLE", openEntry: null },
     effect: "NONE",
   });
+  assert.deepEqual(
+    transitionClock({ presence: "AVAILABLE", openEntry: null }, { type: "SET_OFF_DUTY" }),
+    { next: off, effect: "NONE" },
+  );
   assert.throws(() => transitionClock(working, { type: "SET_AVAILABLE" }), /already_clocked_in/);
+  assert.throws(() => transitionClock(working, { type: "SET_OFF_DUTY" }), /already_clocked_in/);
 });
 
 test("messages are bounded and stripped of controls", () => {

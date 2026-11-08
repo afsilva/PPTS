@@ -66,7 +66,7 @@ test("project membership administration requires administrator or verified manag
   );
 });
 
-test("management permissions are explicit and deny by default", () => {
+test("management permissions and own-only correction are explicit and deny by default", () => {
   assert.equal(can(actor(["MANAGER"]), { capability: "MANAGE_PROJECT", scoped: true }), true);
   assert.equal(can(actor(["MANAGER"]), { capability: "MANAGE_PROJECT", scoped: false }), false);
   assert.equal(
@@ -76,6 +76,35 @@ test("management permissions are explicit and deny by default", () => {
   assert.equal(can(actor(["MANAGER"]), { capability: "MANAGE_CLIENTS_AND_CODES" }), false);
   assert.equal(can(actor(["ADMINISTRATOR"]), { capability: "MANAGE_CLIENTS_AND_CODES" }), true);
   assert.equal(can(actor(["AUDITOR"]), { capability: "MANAGE_PEOPLE_AND_ROLES" }), false);
+  assert.equal(can(actor(["EMPLOYEE"]), { capability: "READ_PROJECT", scoped: true }), true);
+  assert.equal(can(actor(["EMPLOYEE"]), { capability: "READ_PROJECT", scoped: false }), false);
+  assert.equal(can(actor(["MANAGER"]), { capability: "READ_REPORTS", scoped: true }), true);
+  assert.equal(can(actor(["MANAGER"]), { capability: "READ_REPORTS", scoped: false }), false);
+  assert.equal(can(actor(["AUDITOR"]), { capability: "READ_REPORTS", scoped: false }), true);
+  assert.equal(can(actor(["ADMINISTRATOR"]), { capability: "READ_AUDIT", scoped: false }), true);
+  assert.equal(can(actor(["AUDITOR"]), { capability: "READ_AUDIT", scoped: false }), false);
+  assert.equal(can(actor(["EMPLOYEE"]), { capability: "READ_AUDIT", scoped: true }), false);
+  for (const roles of [["EMPLOYEE"], ["MANAGER"], ["ADMINISTRATOR"]] as const)
+    assert.equal(
+      can(actor(roles), { capability: "CORRECT_TIME", targetUserId: "self", scoped: false }),
+      true,
+    );
+  assert.equal(
+    can(actor(["MANAGER"]), { capability: "CORRECT_TIME", targetUserId: "other", scoped: true }),
+    false,
+  );
+  assert.equal(
+    can(actor(["ADMINISTRATOR"]), {
+      capability: "CORRECT_TIME",
+      targetUserId: "other",
+      scoped: true,
+    }),
+    false,
+  );
+  assert.equal(
+    can(actor(["AUDITOR"]), { capability: "CORRECT_TIME", targetUserId: "self", scoped: true }),
+    false,
+  );
   assert.throws(
     () => requireAllowed(actor(["EMPLOYEE"]), { capability: "MANAGE_PEOPLE_AND_ROLES" }),
     /forbidden/,
