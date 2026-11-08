@@ -36,7 +36,7 @@ Never commit or upload real legacy database dumps, production documents, passwor
 
 ## Known foundation limitations
 
-- Local OIDC sign-in and revocable server-side application sessions are implemented; the preview still has no business-data mutations.
+- Local OIDC sign-in, revocable server-side sessions, and the first database-backed time/presence and scoped project-membership mutations are implemented with exact-Origin checks, server-side authorization, bounded input, and business auditing. The broader authorization matrix and production controls remain incomplete.
 - Readiness does not yet query PostgreSQL or the identity provider and is not production-ready.
 - Compose uses local HTTP bound to loopback. Production must terminate managed TLS and use HSTS.
 - CSP currently permits inline style because React emits calculated chart heights. Remove this allowance with nonce/hashing or static classes before production approval.

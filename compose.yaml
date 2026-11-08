@@ -132,6 +132,21 @@ services:
     pids_limit: 128
     cpus: 1.0
 
+  seed:
+    build: { context: ., target: builder }
+    command: ["npm", "run", "db:seed"]
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/ppts
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data]
+    restart: "no"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 128
+    cpus: 1.0
+
   app:
     build: { context: ., target: runner }
     restart: unless-stopped
@@ -145,7 +160,7 @@ services:
     ports:
       - "127.0.0.1:${PPTS_PORT:-3000}:3000"
     depends_on:
-      migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
       keycloak-bootstrap: { condition: service_completed_successfully }
     read_only: true
     tmpfs:

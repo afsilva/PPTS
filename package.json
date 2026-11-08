@@ -19,6 +19,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "test": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --test tests/unit/*.test.ts",
+    "test:integration": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --test --test-concurrency=1 tests/integration/*.test.ts",
     "verify": "npm run supply-chain && npm run deprecations && npm run audit && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
     "supply-chain": "node scripts/check-npm-supply-chain.mjs",
     "audit": "npm audit --audit-level=low",

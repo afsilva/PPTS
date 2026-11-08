@@ -2,7 +2,7 @@
 
 A secure, modern successor to the original **People & Projects Tracking System**. PPTS tracks team presence, project work, time entries, and—incrementally—projects, reporting, notes, and private documents.
 
-> **Status:** pre-release foundation. Local OIDC authentication and revocable database-backed sessions are implemented; the dashboard still uses clearly labeled preview business data. Do not use this version for production timekeeping or expose the local stack beyond loopback.
+> **Status:** pre-release secure time-tracking vertical slice. Local OIDC and revocable database-backed sessions are implemented, and the authenticated dashboard now uses database-backed presence, projects, personal time history, transactional clock actions, and scoped project membership. The local stack uses synthetic data only. Production readiness, complete authorization-matrix coverage, idempotency, dependency-aware readiness, and operational controls remain incomplete; do not use this release for production timekeeping or expose the local stack beyond loopback.
 
 ## History of PPTS
 
@@ -64,6 +64,8 @@ make status
 make logs
 ```
 
+Compose applies migrations, runs an idempotent one-shot seed for the synthetic client/project/work-code catalog, reconciles Keycloak, and then starts the app. The seed never creates authenticated users, memberships, presence, or time entries.
+
 `make clean` deletes both application and Keycloak database volumes but preserves the external runtime configuration. See [local operations](docs/operations/local-development.md) for environment and port overrides.
 
 ### Native development
@@ -93,8 +95,10 @@ npm run audit         # rejects any known vulnerability, including development t
 npm run format:check
 npm run lint
 npm run typecheck
+npm test              # pure unit tests; included in verify
+npm run test:integration  # requires migrated PostgreSQL via DATABASE_URL
 npm run build
-npm run verify
+npm run verify         # static, dependency, unit, and production-build gates
 ```
 
 Health endpoints:

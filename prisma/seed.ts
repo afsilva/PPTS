@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, PresenceState, ProjectRole, Role } from "../src/generated/prisma/client";
+import { PrismaClient } from "../src/generated/prisma/client";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required to seed the database.");
@@ -7,64 +7,42 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required to seed the database
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 
 async function main() {
-  const user = await prisma.user.upsert({
-    where: {
-      issuer_subject: { issuer: "https://local.ppts.invalid", subject: "demo-admin" },
-    },
-    update: {},
-    create: {
-      issuer: "https://local.ppts.invalid",
-      subject: "demo-admin",
-      username: "demo.admin",
-      displayName: "Alex Morgan",
-      email: "alex@example.invalid",
-      roles: { create: [{ role: Role.EMPLOYEE }, { role: Role.ADMINISTRATOR }] },
-      presence: { create: { state: PresenceState.WORKING, message: "Building a better PPTS" } },
-    },
-  });
-
   const client = await prisma.client.upsert({
     where: { name: "Northstar Studio" },
-    update: {},
+    update: { archivedAt: null },
     create: { name: "Northstar Studio" },
   });
   const status = await prisma.projectStatus.upsert({
     where: { name: "Active" },
-    update: {},
+    update: { description: "Work is currently underway." },
     create: { name: "Active", description: "Work is currently underway." },
   });
-  const project = await prisma.project.upsert({
+  await prisma.project.upsert({
     where: { clientId_name: { clientId: client.id, name: "PPTS Modernization" } },
-    update: {},
+    update: {
+      statusId: status.id,
+      description: "Securely rebuilding the original people and project tracking system.",
+      archivedAt: null,
+    },
     create: {
       clientId: client.id,
       statusId: status.id,
       name: "PPTS Modernization",
       description: "Securely rebuilding the original people and project tracking system.",
-      members: { create: { userId: user.id, role: ProjectRole.MANAGER } },
     },
   });
-  const workCode = await prisma.workCode.upsert({
-    where: { name: "Engineering" },
-    update: {},
-    create: { name: "Engineering", description: "Product engineering and implementation." },
-  });
-
-  await prisma.presence.update({ where: { userId: user.id }, data: { projectId: project.id } });
-  const openEntry = await prisma.timeEntry.findFirst({ where: { userId: user.id, endedAt: null } });
-  if (!openEntry) {
-    await prisma.timeEntry.create({
-      data: {
-        userId: user.id,
-        projectId: project.id,
-        workCodeId: workCode.id,
-        startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000 - 18 * 60 * 1000),
-        note: "Initial secure application foundation",
-      },
+  for (const code of [
+    ["Engineering", "Product engineering and implementation."],
+    ["Planning", "Project planning and coordination."],
+    ["Testing", "Verification, accessibility, and security testing."],
+  ] as const)
+    await prisma.workCode.upsert({
+      where: { name: code[0] },
+      update: { description: code[1], active: true },
+      create: { name: code[0], description: code[1], active: true },
     });
-  }
 }
 
 main()
-  .then(() => console.log("Seeded local development data."))
+  .then(() => console.log("Seeded synthetic local business catalog."))
   .finally(() => prisma.$disconnect());

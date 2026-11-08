@@ -679,3 +679,134 @@
     gap: 9px;
   }
 }
+
+.notice,
+.errorNotice {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #b7dec9;
+  background: #effaf4;
+  color: #1c6040;
+}
+
+.errorNotice {
+  border-color: #ebc1c1;
+  background: #fff5f5;
+  color: #8b2929;
+}
+
+.quietDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #8b95a5;
+}
+
+.emptyTimer {
+  padding: 38px 0 20px;
+}
+
+.emptyTimer h2,
+.clockPanel h2,
+.membershipPanel h2 {
+  margin: 0 0 8px;
+}
+
+.emptyTimer p,
+.clockPanel p,
+.membershipPanel p,
+.emptyState {
+  color: var(--text-secondary);
+}
+
+.clockPanel,
+.membershipPanel {
+  max-width: 1240px;
+  margin: 0 auto 24px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.clockForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  margin-top: 18px;
+  align-items: end;
+}
+
+.clockForm label,
+.availableForm label,
+.membershipForm label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.clockForm select,
+.clockForm input,
+.availableForm input,
+.membershipForm select {
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.primaryButton {
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+
+.availableForm {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  align-items: end;
+}
+
+.availableForm label {
+  flex: 1;
+}
+
+.membershipForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  margin-top: 18px;
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .clockForm,
+  .membershipForm {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .clockForm,
+  .membershipForm {
+    grid-template-columns: 1fr;
+  }
+  .availableForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

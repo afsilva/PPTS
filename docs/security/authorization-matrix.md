@@ -16,4 +16,6 @@
 | Write/delete project documents   | Scoped contributor |         Scoped manager |           All |                No |
 | Read security audit events       |                 No | Scoped business events |           All |    Explicit grant |
 
-Every row requires automated positive and negative tests before the capability ships. Administrator is not an authorization shortcut inside repositories; policies are explicit and auditable.
+The shipped first slice implements limited global status-board reads, own status/clock changes, and project-member assignment by administrators or managers with verified `ProjectRole.MANAGER` scope. Status-board output is restricted to display name, coarse presence state, and a bounded status message or project display name; it excludes email, subject/issuer, roles, contact details, and time-entry detail. Membership forms expose only active user display names and active projects within the actor's management scope.
+
+Every row requires automated positive and negative tests before the capability ships. Administrator is not an authorization shortcut inside repositories; policies are explicit and auditable. Rows beyond the first-slice subset remain design policy, not a claim of complete implementation.

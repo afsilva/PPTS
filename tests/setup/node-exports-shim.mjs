@@ -3,8 +3,15 @@
 // Node cannot resolve them outside the Next compiler. This hook retries
 // failed resolutions with `.ts`/`.js` extensions. Load via `node --import`.
 import { registerHooks } from "node:module";
+import { pathToFileURL } from "node:url";
+import { resolve as resolvePath } from "node:path";
 
+const projectRoot = process.cwd();
 function retries(specifier) {
+  if (specifier.startsWith("@/")) {
+    const base = pathToFileURL(resolvePath(projectRoot, "src", specifier.slice(2))).href;
+    return [`${base}.ts`, `${base}.tsx`, `${base}.js`];
+  }
   if (specifier.startsWith("next/") && !specifier.split("/").pop()?.includes("."))
     return [`${specifier}.js`];
   if (

@@ -105,7 +105,42 @@ else
   check "session endpoint omits internal identifiers and roles" 0
 fi
 
-# --- 3. Logout: CSRF guard, session revocation, SSO termination --------------
+# --- 3. Time tracking and business authorization -----------------------------
+DB_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E '(^|/)ppts-db-[0-9]+$' || true)
+if [ -n "$DB_CONTAINER" ]; then
+  # Normalize a prior interrupted run through the public business route.
+  curl -s -o /dev/null -b "$JAR_A" --data '' -H "Origin: $APP" "$APP/api/time/clock-out"
+  project_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "Project" WHERE name = '\''PPTS Modernization'\'' AND "archivedAt" IS NULL LIMIT 1')
+  # Keep one active project deliberately outside Casey's scope to prove denial
+  # after the administrator grants access to the seeded project.
+  "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c 'WITH c AS (INSERT INTO "Client" (id,name,"createdAt","updatedAt") VALUES (gen_random_uuid(),'\''E2E Authorization Client'\'',NOW(),NOW()) ON CONFLICT (name) DO UPDATE SET "archivedAt"=NULL RETURNING id), s AS (SELECT id FROM "ProjectStatus" WHERE name='\''Active'\'' LIMIT 1) INSERT INTO "Project" (id,"clientId","statusId",name,description,"createdAt","updatedAt") SELECT gen_random_uuid(),c.id,s.id,'\''E2E Unassigned Project'\'','\''Authorization denial fixture'\'',NOW(),NOW() FROM c,s ON CONFLICT ("clientId",name) DO UPDATE SET "archivedAt"=NULL' >/dev/null
+  denied_project_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT p.id FROM "Project" p JOIN "Client" c ON c.id=p."clientId" WHERE p.name='\''E2E Unassigned Project'\'' AND c.name='\''E2E Authorization Client'\'' AND p."archivedAt" IS NULL LIMIT 1')
+  "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c "DELETE FROM \"ProjectMember\" USING \"User\" WHERE \"ProjectMember\".\"userId\"=\"User\".id AND \"User\".username='casey.employee' AND \"ProjectMember\".\"projectId\"='$project_id'::uuid" >/dev/null
+  engineering_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "WorkCode" WHERE name = '\''Engineering'\'' AND active LIMIT 1')
+  planning_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "WorkCode" WHERE name = '\''Planning'\'' AND active LIMIT 1')
+  if [ -n "$project_id" ] && [ -n "$engineering_id" ] && [ -n "$planning_id" ]; then
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: http://evil.example" "$APP/api/time/clock-in")
+    check "clock-in rejects a foreign Origin" $([ "$code" = 403 ]; echo $?)
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20engineering" -H "Origin: $APP" "$APP/api/time/clock-in")
+    check "administrator can clock into an active project" $([ "$code" = 303 ]; echo $?)
+    curl -s -b "$JAR_A" "$APP/" | grep -q "E2E engineering"
+    check "dashboard reads current work from the database" $?
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&workCodeId=$planning_id&message=E2E%20planning" -H "Origin: $APP" "$APP/api/time/switch")
+    check "administrator can switch work atomically" $([ "$code" = 303 ]; echo $?)
+    open_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''alex.admin'\'' AND e."endedAt" IS NULL')
+    check "switch leaves exactly one open administrator entry" $([ "$open_count" = 1 ]; echo $?)
+    code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data '' -H "Origin: $APP" "$APP/api/time/clock-out")
+    check "administrator can clock out" $([ "$code" = 303 ]; echo $?)
+    open_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''alex.admin'\'' AND e."endedAt" IS NULL')
+    check "clock-out leaves no open administrator entry" $([ "$open_count" = 0 ]; echo $?)
+  else
+    bad "synthetic project/work-code catalog was not seeded"
+  fi
+else
+  bad "db container not found for time-tracking checks"
+fi
+
+# --- 4. Logout: CSRF guard, session revocation, SSO termination --------------
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" -X POST -H "Origin: http://evil.example" "$APP/auth/logout")
 check "logout rejects a foreign Origin (CSRF guard)" $([ "$code" = 403 ]; echo $?)
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" "$APP/api/auth/session")
@@ -139,6 +174,32 @@ check "employee login lands on the dashboard" $(printf '%s' "$final_url" | grep 
 check "employee login returns 200" $([ "$final_code" = 200 ]; echo $?)
 curl -s -b "$JAR_B" "$APP/api/auth/session" | grep -q '"displayName":"Casey Lee"'
 check "employee session reports the employee identity" $?
+if [ -n "${project_id:-}" ] && [ -n "${denied_project_id:-}" ] && [ -n "${engineering_id:-}" ]; then
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "projectId=$denied_project_id&workCodeId=$engineering_id&message=Must%20be%20denied" -H "Origin: $APP" "$APP/api/time/clock-in")
+  check "unassigned employee clock-in fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
+  employee_open=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''casey.employee'\'' AND e."endedAt" IS NULL')
+  check "denied employee clock-in creates no open entry" $([ "$employee_open" = 0 ]; echo $?)
+
+  casey_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "User" WHERE username='\''casey.employee'\'' LIMIT 1')
+  result=$(perform_login "$JAR_A" "alex.admin" "${KEYCLOAK_ALEX_PASSWORD}")
+  admin_code=$(printf '%s' "$result" | awk '{print $2}')
+  check "administrator can reauthenticate for membership administration" $([ "$admin_code" = 200 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&userId=$casey_id&role=CONTRIBUTOR" -H "Origin: http://evil.example" "$APP/api/projects/members")
+  check "membership assignment rejects a foreign Origin" $([ "$code" = 403 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_A" --data "projectId=$project_id&userId=$casey_id&role=CONTRIBUTOR" -H "Origin: $APP" "$APP/api/projects/members")
+  check "administrator can assign project membership" $([ "$code" = 303 ]; echo $?)
+  membership_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT COUNT(*) FROM \"ProjectMember\" WHERE \"projectId\"='$project_id'::uuid AND \"userId\"='$casey_id'::uuid AND role='CONTRIBUTOR'")
+  check "membership assignment persists authorized scope" $([ "$membership_count" = 1 ]; echo $?)
+
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data "projectId=$project_id&workCodeId=$engineering_id&message=E2E%20employee" -H "Origin: $APP" "$APP/api/time/clock-in")
+  check "assigned employee can clock in" $([ "$code" = 303 ]; echo $?)
+  employee_open=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "TimeEntry" e JOIN "User" u ON u.id=e."userId" WHERE u.username='\''casey.employee'\'' AND e."endedAt" IS NULL')
+  check "assigned employee has exactly one open entry" $([ "$employee_open" = 1 ]; echo $?)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" --data '' -H "Origin: $APP" "$APP/api/time/clock-out")
+  check "assigned employee can clock out" $([ "$code" = 303 ]; echo $?)
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_B" --data "projectId=$denied_project_id&userId=$casey_id&role=MANAGER" -H "Origin: $APP" "$APP/api/projects/members")
+  check "employee project administration fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
+fi
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" -X POST -H "Origin: $APP" "$APP/auth/logout")
 check "employee logout succeeds" $([ "$code" = "303" -o "$code" = "200" ]; echo $?)
 
@@ -184,6 +245,16 @@ if [ -n "$DB_CONTAINER" ]; then
     *AUTH_LOGIN_FAILED:*) check "failed authentication attempts were audited" 0 ;;
     *) check "failed authentication attempts were audited" 1 ;;
   esac
+  case "$rows" in
+    *TIME_CLOCK_IN:*TIME_CLOCK_OUT:*TIME_SWITCH:*) check "successful time transitions were audited" 0 ;;
+    *) check "successful time transitions were audited" 1 ;;
+  esac
+  case "$rows" in
+    *PROJECT_MEMBER_ASSIGNED:*) check "project membership assignment was audited" 0 ;;
+    *) check "project membership assignment was audited" 1 ;;
+  esac
+  failure_count=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT COUNT(*) FROM "AuditEvent" WHERE action='\''TIME_CLOCK_IN'\'' AND outcome='\''FAILURE'\''')
+  check "denied time transition was audited" $([ "$failure_count" -gt 0 ]; echo $?)
 else
   bad "db container not found for the audit check"
 fi

@@ -19,7 +19,7 @@ help: ## Show available commands
 	@printf '%s\n' \
 	  'PPTS local Podman lifecycle' \
 	  '' \
-	  '  make start     Start the Podman machine if needed, build, migrate, and run PPTS' \
+	  '  make start     Start Podman if needed, build, migrate, seed, and run PPTS' \
 	  '  make restart   Stop and start the stack' \
 	  '  make stop      Stop containers while preserving database data' \
 	  '  make clean     Remove containers, images, and both local database volumes' \

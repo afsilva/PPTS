@@ -33,15 +33,17 @@ Modules are added through complete vertical slices, not empty abstractions:
 
 - `identity`: immutable OIDC mapping and sessions
 - `authorization`: roles and resource/project scope
-- `audit`: append-only security/business events
+- `audit`: sanitized security/business event persistence
+- `mutations`: shared exact-Origin, content-type, and bounded-body HTTP boundary
 - `time-tracking`: presence and transactional time-entry state machine
-- later: people, clients, projects, reports, notes, documents
+- `projects`: scoped membership administration; broader project administration is later
+- later: people, clients, reports, corrections, notes, documents
 
 A module owns its domain rules and exposes narrow service functions. Database access remains server-only. Server Components call services directly; route handlers are reserved for browser/external HTTP needs.
 
 ## Deployment
 
-The local stack contains a production-built app, an application PostgreSQL database and one-shot migration job, plus Keycloak, a separate Keycloak PostgreSQL database, and a one-shot realm reconciliation job. Database networks are internal; browser-facing app and identity ports bind only to loopback. The app runs as an unprivileged user with a read-only filesystem and dropped capabilities.
+The local stack contains a production-built app, an application PostgreSQL database, a one-shot migration job, and an idempotent one-shot synthetic business-catalog seed, plus Keycloak, a separate Keycloak PostgreSQL database, and a one-shot realm reconciliation job. Startup orders migration → catalog seed → app, and the app also waits for identity reconciliation. The catalog seed creates no users, memberships, presence, or time entries. Database networks are internal; browser-facing app and identity ports bind only to loopback. The app runs as an unprivileged user with a read-only filesystem and dropped capabilities.
 
 Production will use managed TLS, PostgreSQL, OIDC, secret storage, backups, and centralized telemetry. Local Compose demonstrates operability, not production resilience.
 

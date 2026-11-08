@@ -45,7 +45,7 @@ make start
 
 On macOS, the script also detects whether a Podman machine exists and starts or creates it when necessary. On Linux, Podman runs natively.
 
-The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service before the app starts. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes.
+The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service, followed by an idempotent one-shot seed for the synthetic Northstar Studio / PPTS Modernization catalog and active Engineering, Planning, and Testing work codes. The app waits for both catalog seeding and Keycloak reconciliation. The seed does not create users, memberships, presence, or time entries. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes.
 
 ### Lifecycle commands
 
