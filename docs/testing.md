@@ -1,15 +1,47 @@
 # Testing strategy
 
+## Non-negotiable regression rule
+
+Every new or changed user action, HTTP route, exported business operation, domain rule, authorization decision, and defect fix must include retained automated regression coverage in the same change. A feature is not complete until its tests exist and pass.
+
+Each action requires:
+
+1. the expected success case;
+2. relevant validation and state-boundary cases;
+3. at least one denial/failure case;
+4. explicit allowed and denied actors/resources for authorization behavior;
+5. real PostgreSQL coverage for transactions, persistence, constraints, audits, migrations, or concurrency; and
+6. E2E coverage when session/browser wiring, Origin/CSRF behavior, or a complete user journey changes.
+
+Tests must verify both the intended stored/audited result and the absence of unauthorized side effects. Each defect should first be reproduced by a failing test when practicable; that test remains permanently after the fix.
+
+## Enforced regression contract
+
+`tests/regression-contract.json` inventories every `route.ts` action and shipped exported business action with durable test evidence. `npm run test:contract` verifies that:
+
+- every application route is registered;
+- every async business action exported by the projects/time-tracking modules is registered;
+- each registered implementation and service export still exists;
+- every action references at least one existing test/E2E assertion; and
+- the referenced assertion remains in the evidence file.
+
+Adding a route without updating this contract fails local verification and CI. The contract is a minimum coverage inventory, not a substitute for reviewing test quality. The pull-request template requires an explicit action-to-test table so reviewers can reject missing positive, negative, boundary, persistence, audit, or concurrency cases.
+
 ## Required gates
 
-`npm run verify` enforces the 72-hour package-age/no-deprecation/no-non-registry-source policy, rejects every known vulnerability across production and development dependencies, and checks formatting, lint, type safety, Prisma generation, unit tests, and the production build. CI runs the supply-chain and audit gates before executing package lifecycle/build code and runs the unit suite.
+`npm run verify` enforces the 72-hour package-age/no-deprecation/no-non-registry-source policy, rejects every known vulnerability across production and development dependencies, and checks formatting, lint, type safety, Prisma generation, unit tests, the regression contract, and the production build.
 
-`npm run test:integration` is a separate real-PostgreSQL gate. It requires `DATABASE_URL` for an empty or test-only migrated database. The local release workflow runs it through the internal Compose database network; CI automation for this database-backed gate remains pending. Do not interpret a passing `npm run verify` alone as concurrency evidence.
+CI has two required jobs:
+
+- **verify:** supply-chain, vulnerability, format, lint, type, unit, regression-contract, production-build, and hardened-container gates;
+- **integration:** starts digest-pinned PostgreSQL, applies the complete migration history to an empty database, then runs all real-database regression and concurrency tests.
+
+For local execution, `npm run test:integration` requires `DATABASE_URL` for an empty or test-only migrated PostgreSQL database. Full-stack OIDC/business E2E remains a release and applicable-change gate because it requires the hardened local Compose topology.
 
 ## Test layers and current evidence
 
-- **Unit:** `time-state.test.ts` covers pure transitions, message normalization, duration, and boundary clipping. `authorization-policy.test.ts` covers positive and negative capability decisions, including manager project scope. Authentication crypto, role provisioning, and redirect validation have separate unit suites.
-- **Integration:** `time-tracking.test.ts` executes production services against PostgreSQL and covers simultaneous clock-in, atomic switch, clock-out consistency, availability/clock races, and unassigned-project denial. `project-membership.test.ts` covers administrator/scoped-manager assignment; employee/unscoped-manager denial; inactive/archived target rejection; and sanitized failure audits.
+- **Unit:** `time-state.test.ts` covers pure transitions, message normalization, duration, and boundary clipping. `authorization-policy.test.ts` covers positive and negative capability decisions, including manager project scope. `mutation-form.test.ts` proves bounded decoding and streamed oversized-body rejection. Authentication crypto, role provisioning, and redirect validation have separate unit suites.
+- **Integration:** `time-tracking.test.ts` executes production services against PostgreSQL and covers simultaneous clock-in, atomic switch, clock-out consistency, availability success/audit, availability/clock races, and unassigned-project denial. `project-membership.test.ts` covers administrator/scoped-manager assignment; employee/unscoped-manager denial; inactive/archived target rejection; and sanitized failure audits.
 - **E2E:** `scripts/e2e-oidc.sh` exercises OIDC administrator/employee login, response minimization, logout Origin rejection, application/provider revocation, disabled-user denial, administrator clock-in/switch/out, unassigned employee denial, administrator membership assignment, employee clock-in/out after assignment, employee administration denial, foreign-Origin rejection, database invariants, and authentication/business audit persistence.
 - **Security:** every shipped authorization capability requires allow and deny cases; SAST/SCA/secrets, DAST on staging, and header/CSP checks remain broader release work.
 - **Accessibility:** automated checks plus keyboard, screen reader, 200% zoom, 320 CSS-pixel reflow, contrast, forced colors, and reduced motion.
@@ -17,4 +49,4 @@
 
 ## Remaining coverage
 
-Explicit manager-scoped HTTP/E2E behavior, cross-user time/report authorization, retry/idempotency behavior, migration upgrade fixtures, fault injection, and future correction/reporting capabilities are not yet complete. The organization timezone is unresolved, so current day/week tests use UTC boundaries.
+Explicit manager-scoped HTTP/E2E behavior, cross-user time/report authorization, retry/idempotency behavior, migration upgrade fixtures from populated prior schemas, fault injection, and future correction/reporting capabilities are not yet complete. The organization timezone is unresolved, so current day/week tests use UTC boundaries.

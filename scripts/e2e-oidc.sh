@@ -75,6 +75,8 @@ perform_login() {
 # --- 1. Unauthenticated behavior --------------------------------------------
 code=$(curl -s -o /dev/null -w '%{http_code}' "$APP/api/health/live")
 check "health endpoint is live" $([ "$code" = 200 ]; echo $?)
+code=$(curl -s -o /dev/null -w '%{http_code}' "$APP/api/health/ready")
+check "process readiness endpoint is available" $([ "$code" = 200 ]; echo $?)
 body=$(curl -s -o /dev/null -w '%{redirect_url}' "$APP/")
 check "root redirects unauthenticated users to login" $(printf '%s' "$body" | grep -q "$APP/login"; echo $?)
 code=$(curl -s -o "$WORK/s.json" -w '%{http_code}' "$APP/api/auth/session")

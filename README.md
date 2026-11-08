@@ -95,10 +95,11 @@ npm run audit         # rejects any known vulnerability, including development t
 npm run format:check
 npm run lint
 npm run typecheck
-npm test              # pure unit tests; included in verify
-npm run test:integration  # requires migrated PostgreSQL via DATABASE_URL
+npm test                  # pure unit tests; included in verify
+npm run test:contract     # every route/business action retains test evidence
+npm run test:integration  # real PostgreSQL; CI migrates an empty test database
 npm run build
-npm run verify         # static, dependency, unit, and production-build gates
+npm run verify             # static, dependency, unit, contract, and build gates
 ```
 
 Health endpoints:
@@ -125,7 +126,7 @@ Please read [SECURITY.md](SECURITY.md) before reporting an issue. Never commit p
 
 ## Documentation policy
 
-A change is not complete until affected documentation, architecture decisions, threat model, authorization matrix, schema diagrams/migrations, and operational commands are updated in the same pull request. See [CONTRIBUTING.md](CONTRIBUTING.md).
+A feature or fix is not complete until every changed action has retained positive and negative/boundary regression tests, its regression-contract entry is current, and affected documentation, architecture decisions, threat model, authorization matrix, schema diagrams/migrations, and operational commands are updated in the same pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [testing strategy](docs/testing.md).
 
 ## Project documents
 

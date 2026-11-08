@@ -128,6 +128,18 @@ test("clock-out closes work, clears project presence, and audits", async () => {
   );
 });
 
+test("available updates non-working presence and audits", async () => {
+  await setAvailable(actor, "Ready for work");
+  const presence = await db.presence.findUniqueOrThrow({ where: { userId } });
+  assert.equal(presence.state, "AVAILABLE");
+  assert.equal(presence.projectId, null);
+  assert.equal(presence.message, "Ready for work");
+  assert.equal(
+    await db.auditEvent.count({ where: { actorId: userId, action: "PRESENCE_AVAILABLE" } }),
+    1,
+  );
+});
+
 test("concurrent available and clock-in preserve a consistent snapshot", async () => {
   const results = await Promise.allSettled([
     setAvailable(actor, "Ready"),

@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "routes": [
+    {
+      "id": "health.liveness",
+      "implementation": "src/app/api/health/live/route.ts",
+      "methods": ["GET"],
+      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "health endpoint is live" }]
+    },
+    {
+      "id": "health.readiness",
+      "implementation": "src/app/api/health/ready/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        { "file": "scripts/e2e-oidc.sh", "contains": "process readiness endpoint is available" }
+      ]
+    },
+    {
+      "id": "auth.login",
+      "implementation": "src/app/auth/login/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        { "file": "scripts/e2e-oidc.sh", "contains": "admin login lands on the dashboard" }
+      ]
+    },
+    {
+      "id": "auth.callback",
+      "implementation": "src/app/auth/callback/route.ts",
+      "methods": ["GET"],
+      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "invalid callback fails closed" }]
+    },
+    {
+      "id": "auth.session",
+      "implementation": "src/app/api/auth/session/route.ts",
+      "methods": ["GET"],
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "session endpoint omits internal identifiers and roles"
+        }
+      ]
+    },
+    {
+      "id": "auth.logout",
+      "implementation": "src/app/auth/logout/route.ts",
+      "methods": ["POST"],
+      "evidence": [{ "file": "scripts/e2e-oidc.sh", "contains": "logout rejects a foreign Origin" }]
+    },
+    {
+      "id": "time.clock-in",
+      "implementation": "src/app/api/time/clock-in/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "concurrent clock-in leaves exactly one open entry"
+        },
+        { "file": "scripts/e2e-oidc.sh", "contains": "unassigned employee clock-in fails closed" }
+      ]
+    },
+    {
+      "id": "time.clock-out",
+      "implementation": "src/app/api/time/clock-out/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "clock-out closes work, clears project presence, and audits"
+        }
+      ]
+    },
+    {
+      "id": "time.switch",
+      "implementation": "src/app/api/time/switch/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "switch closes the old entry and opens a new one atomically"
+        }
+      ]
+    },
+    {
+      "id": "presence.available",
+      "implementation": "src/app/api/time/available/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "available updates non-working presence and audits"
+        }
+      ]
+    },
+    {
+      "id": "projects.members.assign",
+      "implementation": "src/app/api/projects/members/route.ts",
+      "methods": ["POST"],
+      "evidence": [
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "administrator assigns and updates active project membership"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "employee project administration fails closed"
+        }
+      ]
+    }
+  ],
+  "businessActions": [
+    {
+      "id": "dashboard.read",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "getDashboard",
+      "evidence": [
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "dashboard reads current work from the database"
+        }
+      ]
+    },
+    {
+      "id": "time.clock-in.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "clockIn",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "concurrent clock-in leaves exactly one open entry"
+        }
+      ]
+    },
+    {
+      "id": "time.clock-out.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "clockOut",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "clock-out closes work, clears project presence, and audits"
+        }
+      ]
+    },
+    {
+      "id": "time.switch.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "switchWork",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "switch closes the old entry and opens a new one atomically"
+        }
+      ]
+    },
+    {
+      "id": "presence.available.service",
+      "implementation": "src/modules/time-tracking/service.ts",
+      "export": "setAvailable",
+      "evidence": [
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "available updates non-working presence and audits"
+        }
+      ]
+    },
+    {
+      "id": "projects.members.assign.service",
+      "implementation": "src/modules/projects/membership.ts",
+      "export": "assignProjectMember",
+      "evidence": [
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "project-scoped manager can assign a member only within managed scope"
+        }
+      ]
+    }
+  ]
+}
