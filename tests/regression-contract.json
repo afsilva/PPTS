@@ -588,6 +588,10 @@
           "contains": "report clips organization-local month boundaries and keeps duplicate names separate"
         },
         {
+          "file": "tests/unit/legacy-report-reconciliation.test.ts",
+          "contains": "legacy reconciliation records intentional boundary, multi-day, and carry corrections"
+        },
+        {
           "file": "scripts/e2e-oidc.sh",
           "contains": "manager can export a scoped monthly CSV"
         }

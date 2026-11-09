@@ -37,7 +37,7 @@ Never commit or upload real legacy database dumps, production documents, passwor
 ## Known foundation limitations
 
 - Local OIDC sign-in, revocable server-side sessions, and the first database-backed time/presence and scoped project-membership mutations are implemented with exact-Origin checks, server-side authorization, bounded input, and business auditing. The broader authorization matrix and production controls remain incomplete.
-- Readiness does not yet query PostgreSQL or the identity provider and is not production-ready.
+- Application readiness verifies PostgreSQL connectivity. Production orchestration must also monitor the external identity provider and scheduled workers rather than treating application readiness as whole-system readiness.
 - Compose uses local HTTP bound to loopback. Production must terminate managed TLS and use HSTS.
 - CSP currently permits inline style because React emits calculated chart heights. Remove this allowance with nonce/hashing or static classes before production approval.
 - The development database credential is convenient, not a production secret-management pattern.

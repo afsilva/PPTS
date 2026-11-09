@@ -1,10 +1,6 @@
-export type MonthlyReportGroup = {
-  projectId: string;
-  clientName: string;
-  projectName: string;
-  totalSeconds: number;
-  people: Array<{ userId: string; displayName: string; seconds: number }>;
-};
+import type { MonthlyReportGroup } from "./aggregation";
+
+export type { MonthlyReportGroup } from "./aggregation";
 
 /**
  * Prevent spreadsheet applications from interpreting exported text as a

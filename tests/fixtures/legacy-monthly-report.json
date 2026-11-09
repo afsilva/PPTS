@@ -1,0 +1,108 @@
+{
+  "source": {
+    "archive": "original/ppts-2.0alpha3.tar",
+    "sha256": "96d0e3b2481cd3ea7c282b892c89c03031df10c9477633a79e491e299c58893a",
+    "reports": ["ppts/reports/myreport.cgi", "ppts/reports/myoldreport.cgi"]
+  },
+  "report": {
+    "year": 2001,
+    "month": 3,
+    "timeZone": "UTC",
+    "start": "2001-03-01T00:00:00.000Z",
+    "end": "2001-04-01T00:00:00.000Z"
+  },
+  "projects": [
+    {
+      "id": "legacy-project-7",
+      "clientName": "Synthetic Legacy Client",
+      "projectName": "Synthetic Legacy Project"
+    },
+    {
+      "id": "legacy-project-empty",
+      "clientName": "Synthetic Legacy Client",
+      "projectName": "No March Time"
+    }
+  ],
+  "entries": [
+    {
+      "case": "ordinary-completed-entry",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-alex",
+      "displayName": "alex",
+      "startedAt": "2001-03-05T09:00:00.000Z",
+      "endedAt": "2001-03-05T10:30:00.000Z"
+    },
+    {
+      "case": "exact-sixty-minute-carry",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-alex",
+      "displayName": "alex",
+      "startedAt": "2001-03-06T09:00:00.000Z",
+      "endedAt": "2001-03-06T09:30:00.000Z"
+    },
+    {
+      "case": "second-user",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-blair",
+      "displayName": "blair",
+      "startedAt": "2001-03-10T13:00:00.000Z",
+      "endedAt": "2001-03-10T13:45:00.000Z"
+    },
+    {
+      "case": "starts-before-month",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-blair",
+      "displayName": "blair",
+      "startedAt": "2001-02-28T23:30:00.000Z",
+      "endedAt": "2001-03-01T00:30:00.000Z"
+    },
+    {
+      "case": "ends-after-month",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-alex",
+      "displayName": "alex",
+      "startedAt": "2001-03-31T23:30:00.000Z",
+      "endedAt": "2001-04-01T00:30:00.000Z"
+    },
+    {
+      "case": "multi-day",
+      "projectId": "legacy-project-7",
+      "userId": "legacy-user-alex",
+      "displayName": "alex",
+      "startedAt": "2001-03-20T10:00:00.000Z",
+      "endedAt": "2001-03-21T12:15:00.000Z"
+    },
+    {
+      "case": "outside-month",
+      "projectId": "legacy-project-empty",
+      "userId": "legacy-user-alex",
+      "displayName": "alex",
+      "startedAt": "2001-04-02T09:00:00.000Z",
+      "endedAt": "2001-04-02T10:00:00.000Z"
+    }
+  ],
+  "expected": {
+    "preservedOrdinaryEntrySeconds": 5400,
+    "modern": {
+      "projectTotalSeconds": 108000,
+      "peopleSeconds": {
+        "legacy-user-alex": 103500,
+        "legacy-user-blair": 4500
+      },
+      "visibleProjectIds": ["legacy-project-7"]
+    },
+    "legacyDefects": {
+      "reportedProjectTotalSeconds": 21600,
+      "reportedPeopleSeconds": {
+        "legacy-user-alex": 15300,
+        "legacy-user-blair": 6300
+      },
+      "excludedCases": ["ends-after-month"],
+      "explanations": [
+        "The CGI selected rows only when EndTime text matched the requested month, so time ending after the month was omitted and time starting before it was not clipped.",
+        "Date::Calc Delta_DHMS returned days separately, but the CGI summed only hours and minutes, so whole days in multi-day entries were discarded.",
+        "The CGI normalized minutes only when greater than 60, leaving an exact 60-minute remainder instead of carrying one hour."
+      ]
+    }
+  }
+}

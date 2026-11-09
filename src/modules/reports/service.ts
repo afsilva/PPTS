@@ -4,7 +4,7 @@ import { getDatabase } from "@/db/client";
 import type { Actor } from "@/modules/authorization/policy";
 import { requireAllowed } from "@/modules/authorization/policy";
 import { BusinessError } from "@/modules/business/errors";
-import { durationSeconds } from "@/modules/time-tracking/domain";
+import { aggregateMonthlyEntries } from "./aggregation";
 import { zonedMonthBounds } from "./timezone";
 
 export function monthBounds(year: number, month: number, timeZone = getOrganizationTimeZone()) {
@@ -48,37 +48,9 @@ export async function getMonthlyReport(actor: Actor, year: number, month: number
       project: { select: { id: true, name: true, client: { select: { name: true } } } },
     },
   });
-  const groups = new Map<
-    string,
-    {
-      projectId: string;
-      clientName: string;
-      projectName: string;
-      totalSeconds: number;
-      people: Map<string, { displayName: string; seconds: number }>;
-    }
-  >();
-  for (const entry of entries) {
-    const clippedStart = new Date(Math.max(start.getTime(), entry.startedAt.getTime()));
-    const clippedEnd = new Date(Math.min(end.getTime(), entry.endedAt!.getTime()));
-    const seconds = durationSeconds(clippedStart, clippedEnd);
-    const group = groups.get(entry.project.id) ?? {
-      projectId: entry.project.id,
-      clientName: entry.project.client.name,
-      projectName: entry.project.name,
-      totalSeconds: 0,
-      people: new Map<string, { displayName: string; seconds: number }>(),
-    };
-    group.totalSeconds += seconds;
-    const person = group.people.get(entry.user.id);
-    group.people.set(entry.user.id, {
-      displayName: entry.user.displayName,
-      seconds: (person?.seconds ?? 0) + seconds,
-    });
-    groups.set(entry.project.id, group);
-  }
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    people: Array.from(group.people, ([userId, person]) => ({ userId, ...person })),
-  }));
+  return aggregateMonthlyEntries(
+    entries.map((entry) => ({ ...entry, endedAt: entry.endedAt! })),
+    start,
+    end,
+  );
 }

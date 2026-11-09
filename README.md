@@ -97,7 +97,7 @@ npm run audit         # rejects any known vulnerability, including development t
 npm run format:check
 npm run lint
 npm run typecheck
-npm test                  # pure unit tests; included in verify
+npm test                  # unit tests and checksum-bound synthetic legacy report reconciliation
 npm run test:contract     # every route/business action retains test evidence
 npm run test:integration  # real PostgreSQL; CI migrates an empty test database
 npm run test:browser-parity # real Chromium + Keycloak catalog/people/project acceptance
