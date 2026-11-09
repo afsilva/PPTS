@@ -141,10 +141,16 @@ export async function createProject(actor: Actor, input: ProjectCreateInput) {
   requireCatalogAdmin(actor);
   return getDatabase().$transaction(
     async (tx) => {
-      const [client, status] = await Promise.all([
-        tx.client.findUnique({ where: { id: input.clientId }, select: { archivedAt: true } }),
-        tx.projectStatus.findUnique({ where: { id: input.statusId }, select: { id: true } }),
-      ]);
+      // Interactive transactions share one PostgreSQL connection. Keep their
+      // queries sequential instead of relying on the driver's deprecated queue.
+      const client = await tx.client.findUnique({
+        where: { id: input.clientId },
+        select: { archivedAt: true },
+      });
+      const status = await tx.projectStatus.findUnique({
+        where: { id: input.statusId },
+        select: { id: true },
+      });
       if (!client || client.archivedAt || !status) throw new BusinessError("INVALID_TARGET");
       const row = await tx.project.create({
         data: {

@@ -13,10 +13,18 @@ const valid = {
   billingRate: "125.50",
 };
 
-test("project update converts money to cents and empty optional values", () => {
-  const parsed = projectUpdateSchema.parse({ ...valid, coderId: "", estimatedCodingMinutes: "" });
+test("project update converts money and preserves explicit relationship clearing", () => {
+  const parsed = projectUpdateSchema.parse({
+    ...valid,
+    coderId: "",
+    developmentContactId: "",
+    productionContactId: "",
+    estimatedCodingMinutes: "",
+  });
   assert.equal(parsed.billingRate, 12550);
-  assert.equal(parsed.coderId, undefined);
+  assert.equal(parsed.coderId, null);
+  assert.equal(parsed.developmentContactId, null);
+  assert.equal(parsed.productionContactId, null);
   assert.equal(parsed.estimatedCodingMinutes, undefined);
 });
 

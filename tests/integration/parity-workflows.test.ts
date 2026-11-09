@@ -12,6 +12,7 @@ import {
   updatePerson,
 } from "../../src/modules/people/service";
 import { addProjectLog, getProjectDetail, updateProject } from "../../src/modules/projects/service";
+import { projectUpdateSchema } from "../../src/modules/projects/schemas";
 import type { Actor } from "../../src/modules/authorization/policy";
 
 const url = process.env.DATABASE_URL;
@@ -271,6 +272,55 @@ test("inactive manager cannot use stale project scope for reads, logs, or update
   assert.equal((await db.project.findUniqueOrThrow({ where: { id: projectId } })).version, 1);
 });
 
+test("project update persists explicit clearing of assigned people", async () => {
+  const coder = await db.person.create({
+    data: { kind: "EMPLOYEE", displayName: `Parity Coder ${marker}` },
+  });
+  const developmentContact = await db.person.create({
+    data: { kind: "CONTACT", displayName: `Parity Development Contact ${marker}` },
+  });
+  const productionContact = await db.person.create({
+    data: { kind: "CONTACT", displayName: `Parity Production Contact ${marker}` },
+  });
+  await db.project.update({
+    where: { id: projectId },
+    data: {
+      coderId: coder.id,
+      developmentContactId: developmentContact.id,
+      productionContactId: productionContact.id,
+    },
+  });
+
+  const input = projectUpdateSchema.parse({
+    id: projectId,
+    version: 1,
+    clientId,
+    statusId,
+    name: `Parity Project ${marker}`,
+    description: "Relationships cleared",
+    billingRate: "",
+    languages: "",
+    modules: "",
+    extras: "",
+    developmentServerName: "",
+    developmentServerPath: "",
+    productionServerName: "",
+    productionServerPath: "",
+    coderId: "",
+    developmentContactId: "",
+    productionContactId: "",
+  });
+  const changed = await updateProject(admin, input);
+  assert.equal(changed.version, 2);
+  assert.equal(changed.coderId, null);
+  assert.equal(changed.developmentContactId, null);
+  assert.equal(changed.productionContactId, null);
+  const persisted = await db.project.findUniqueOrThrow({ where: { id: projectId } });
+  assert.equal(persisted.coderId, null);
+  assert.equal(persisted.developmentContactId, null);
+  assert.equal(persisted.productionContactId, null);
+});
+
 test("project member reads and writes authenticated journal while update remains scoped", async () => {
   const detail = await getProjectDetail(employee, projectId);
   assert.equal(detail.canManage, false);
@@ -298,7 +348,7 @@ test("project member reads and writes authenticated journal while update remains
   );
   const changed = await updateProject(admin, {
     id: projectId,
-    version: 1,
+    version: 2,
     clientId,
     statusId,
     name: `Parity Project ${marker}`,
@@ -312,6 +362,6 @@ test("project member reads and writes authenticated journal while update remains
     productionServerName: "",
     productionServerPath: "",
   });
-  assert.equal(changed.version, 2);
+  assert.equal(changed.version, 3);
   assert.equal(changed.billingRateCents, 12500);
 });

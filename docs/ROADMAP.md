@@ -44,7 +44,7 @@
 
 ## Milestone 2 — Core administration
 
-Client, project-status, project, and work-code creation/editing plus archive/state controls are implemented. Identity-independent people/contact profiles, administrator-controlled one-to-one links from active login accounts to employee profiles, full project metadata, scoped membership removal, and journal workflows are available. Keycloak role lifecycle/production synchronization, richer privacy policy, and complete lifecycle administration remain.
+Client, project-status, project, and work-code creation/editing plus archive/state controls are implemented and exercised through durable real-Chromium acceptance. Identity-independent people/contact profiles, administrator-controlled one-to-one links from active login accounts to employee profiles, full project metadata (including explicit contact clearing), scoped membership removal, and journal workflows are available. Keycloak role lifecycle/production synchronization, richer privacy policy, and complete lifecycle administration remain.
 
 ## Milestone 3 — Reports and corrections
 

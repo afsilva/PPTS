@@ -87,17 +87,17 @@ export async function updateProject(actor: Actor, input: ProjectUpdateInput) {
   }
   return getDatabase().$transaction(
     async (tx) => {
-      const [client, status, coder, developmentContact, productionContact] = await Promise.all([
-        tx.client.findUnique({ where: { id: input.clientId } }),
-        tx.projectStatus.findUnique({ where: { id: input.statusId } }),
-        input.coderId ? tx.person.findUnique({ where: { id: input.coderId } }) : null,
-        input.developmentContactId
-          ? tx.person.findUnique({ where: { id: input.developmentContactId } })
-          : null,
-        input.productionContactId
-          ? tx.person.findUnique({ where: { id: input.productionContactId } })
-          : null,
-      ]);
+      const client = await tx.client.findUnique({ where: { id: input.clientId } });
+      const status = await tx.projectStatus.findUnique({ where: { id: input.statusId } });
+      const coder = input.coderId
+        ? await tx.person.findUnique({ where: { id: input.coderId } })
+        : null;
+      const developmentContact = input.developmentContactId
+        ? await tx.person.findUnique({ where: { id: input.developmentContactId } })
+        : null;
+      const productionContact = input.productionContactId
+        ? await tx.person.findUnique({ where: { id: input.productionContactId } })
+        : null;
       if (
         !client ||
         client.archivedAt ||

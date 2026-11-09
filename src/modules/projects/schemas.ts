@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 const uuid = z.uuid();
-const optionalUuid = z.preprocess((value) => (value === "" ? undefined : value), uuid.optional());
+const optionalUuid = z.preprocess(
+  (value) => (value === "" ? null : value),
+  uuid.nullable().optional(),
+);
 const optionalMinutes = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().min(0).max(10_000_000).optional(),

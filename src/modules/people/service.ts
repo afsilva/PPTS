@@ -92,13 +92,11 @@ export async function linkPersonIdentity(actor: Actor, input: PersonLinkInput) {
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Person" WHERE id = ${input.id}::uuid FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${input.userId}::uuid FOR UPDATE`;
-      const [person, user] = await Promise.all([
-        tx.person.findUnique({ where: { id: input.id } }),
-        tx.user.findUnique({
-          where: { id: input.userId },
-          select: { id: true, active: true, person: { select: { id: true } } },
-        }),
-      ]);
+      const person = await tx.person.findUnique({ where: { id: input.id } });
+      const user = await tx.user.findUnique({
+        where: { id: input.userId },
+        select: { id: true, active: true, person: { select: { id: true } } },
+      });
       if (!person || person.archivedAt || person.kind !== "EMPLOYEE" || !user || !user.active)
         throw new BusinessError("INVALID_TARGET");
       if (person.version !== input.version) throw new BusinessError("STALE_VERSION");

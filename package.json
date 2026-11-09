@@ -27,6 +27,7 @@
     "test": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --test tests/unit/*.test.ts",
     "test:contract": "node scripts/check-regression-contract.mjs",
     "test:integration": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --test --test-concurrency=1 tests/integration/*.test.ts",
+    "test:browser-parity": "node scripts/browser-parity.mjs",
     "verify": "npm run supply-chain && npm run ci-actions && npm run deprecations && npm run audit && npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:contract && npm run build",
     "supply-chain": "node scripts/check-npm-supply-chain.mjs",
     "ci-actions": "node scripts/check-ci-action-pins.mjs",
@@ -56,6 +57,7 @@
     "globals": "16.4.0",
     "prettier": "3.9.10",
     "prisma": "7.10.1",
+    "puppeteer-core": "25.14.0",
     "server-only": "0.0.1",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
@@ -73,6 +75,8 @@
     "@babel/traverse": "7.29.12",
     "caniuse-lite": "1.0.30001820",
     "electron-to-chromium": "1.5.476",
-    "@isaacs/nonrecursive-glob-match": "1.0.3"
+    "@isaacs/nonrecursive-glob-match": "1.0.3",
+    "ansi-regex": "6.5.0",
+    "ws": "8.22.1"
   }
 }

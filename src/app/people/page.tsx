@@ -114,6 +114,7 @@ export default async function PeoplePage({
                 action="/api/people/archive"
                 method="post"
                 className={styles.inlineForm}
+                data-person={person.displayName}
               >
                 <input type="hidden" name="id" value={person.id} />
                 <input type="hidden" name="version" value={person.version} />

@@ -236,7 +236,7 @@
       "evidence": [
         {
           "file": "tests/unit/project-schemas.test.ts",
-          "contains": "project update converts money to cents"
+          "contains": "project update converts money and preserves explicit relationship clearing"
         }
       ]
     },
@@ -696,7 +696,7 @@
       "evidence": [
         {
           "file": "tests/unit/project-schemas.test.ts",
-          "contains": "project update converts money to cents"
+          "contains": "project update converts money and preserves explicit relationship clearing"
         },
         {
           "file": "tests/integration/parity-workflows.test.ts",

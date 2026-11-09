@@ -2,7 +2,7 @@
 
 A secure, modern successor to the original **People & Projects Tracking System**. PPTS tracks team presence, project work, time entries, and—incrementally—projects, reporting, notes, and private documents.
 
-> **Status:** pre-release modernization. Local OIDC with brute-force protection, administrator/manager/employee test identities, and capped revocable sessions; transactional replay-safe presence/time tracking; database-verified active-user and project scope; people/catalog/project administration with optional employee/login linking; organization-timezone dashboard totals and monthly HTML/CSV reporting; precision-preserving paginated self-service correction; responsive mutation feedback and a live current timer; bounded administrator audit visibility; and quarantine-first scanned project documents are implemented. Production object storage/document policy, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
+> **Status:** pre-release modernization. Local OIDC with brute-force protection, administrator/manager/employee test identities, and capped revocable sessions; transactional replay-safe presence/time tracking; database-verified active-user and project scope; real-browser-accepted people/catalog/project administration with optional employee/login linking; organization-timezone dashboard totals and monthly HTML/CSV reporting; precision-preserving paginated self-service correction; responsive mutation feedback and a live current timer; bounded administrator audit visibility; and quarantine-first scanned project documents are implemented. Production object storage/document policy, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
 
 ## History of PPTS
 
@@ -100,6 +100,7 @@ npm run typecheck
 npm test                  # pure unit tests; included in verify
 npm run test:contract     # every route/business action retains test evidence
 npm run test:integration  # real PostgreSQL; CI migrates an empty test database
+npm run test:browser-parity # real Chromium + Keycloak catalog/people/project acceptance
 npm run maintenance:sessions        # one-shot purge of inactive sessions
 npm run maintenance:clock-receipts  # one-shot purge of expired retry receipts
 npm run maintenance:run             # scheduled combined cleanup worker

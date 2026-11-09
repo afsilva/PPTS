@@ -71,7 +71,11 @@ export default async function CatalogPage({
               {!x.archivedAt && <SubmitButton pendingLabel="Saving…">Save</SubmitButton>}
             </MutationForm>
             {!x.archivedAt && (
-              <MutationForm action="/api/catalog/archive?returnTo=/catalog" method="post">
+              <MutationForm
+                action="/api/catalog/archive?returnTo=/catalog"
+                method="post"
+                data-client={x.name}
+              >
                 <input type="hidden" name="entity" value="client" />
                 <input type="hidden" name="id" value={x.id} />
                 <SubmitButton
@@ -146,7 +150,7 @@ export default async function CatalogPage({
           </SubmitButton>
         </MutationForm>
         {catalog.workCodes.map((x) => (
-          <div className={styles.catalogEditRow} key={x.id}>
+          <div className={styles.catalogEditRow} key={x.id} data-work-code={x.name}>
             <MutationForm action="/api/catalog/work-codes/update" method="post">
               <input type="hidden" name="id" value={x.id} />
               <input type="hidden" name="version" value={x.version} />
