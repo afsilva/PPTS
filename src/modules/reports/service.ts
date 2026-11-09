@@ -16,6 +16,11 @@ export function monthBounds(year: number, month: number, timeZone = getOrganizat
 }
 
 export async function getMonthlyReport(actor: Actor, year: number, month: number) {
+  const actorRecord = await getDatabase().user.findUnique({
+    where: { id: actor.userId },
+    select: { active: true },
+  });
+  if (!actorRecord?.active) throw new BusinessError("FORBIDDEN");
   const scoped = actor.roles.includes("MANAGER");
   try {
     requireAllowed(actor, { capability: "READ_REPORTS", scoped });

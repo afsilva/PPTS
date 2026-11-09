@@ -14,6 +14,7 @@ Synthetic accounts:
 
 - Administrator: `alex.admin`
 - Employee: `casey.employee`
+- Manager: `morgan.manager` (synthetic project/report-scope verification)
 
 Passwords are generated, never committed, and stored in the protected external environment file:
 
@@ -47,7 +48,7 @@ The Keycloak console administrator is `local-admin`; its generated password is s
 - Keycloak and app databases use separate Podman volumes.
 - Ports bind only to loopback; local HTTP is never a production configuration.
 
-Realm structure and synthetic users are committed without credentials. A one-shot bootstrap container reconciles the security-critical client settings on every start, fails if canonical roles or users are missing, and reapplies generated passwords idempotently after Keycloak becomes healthy. This prevents persisted database state from silently retaining unsafe client drift. Changing a generated database password while its volume exists is intentionally not a rotation mechanism: reset with `make clean` first. Account and administrator password changes are reapplied on the next restart.
+Realm structure and synthetic users are committed without credentials. A one-shot bootstrap container reconciles the security-critical client settings on every start, creates the canonical manager when upgrading an existing local realm, fails if required roles or other canonical users are missing, and reapplies approved roles and generated passwords idempotently after Keycloak becomes healthy. This prevents persisted database state from silently retaining unsafe client drift. Changing a generated database password while its volume exists is intentionally not a rotation mechanism: reset with `make clean` first. Account and administrator password changes are reapplied on the next restart.
 
 ## Reset
 

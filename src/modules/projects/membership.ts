@@ -9,10 +9,17 @@ import type { ProjectMembershipInput, ProjectMemberRemoveInput } from "./schemas
 export async function assignProjectMember(actor: Actor, input: ProjectMembershipInput) {
   return getDatabase().$transaction(
     async (tx) => {
-      const existingScope = await tx.projectMember.findUnique({
-        where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
-        select: { role: true },
+      const actorRecord = await tx.user.findUnique({
+        where: { id: actor.userId },
+        select: { active: true },
       });
+      if (!actorRecord?.active) throw new BusinessError("FORBIDDEN");
+      const existingScope = actor.roles.includes("ADMINISTRATOR")
+        ? null
+        : await tx.projectMember.findUnique({
+            where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
+            select: { role: true },
+          });
       try {
         requireAllowed(actor, {
           capability: "MANAGE_PROJECT",
@@ -57,10 +64,17 @@ export async function assignProjectMember(actor: Actor, input: ProjectMembership
 export async function removeProjectMember(actor: Actor, input: ProjectMemberRemoveInput) {
   return getDatabase().$transaction(
     async (tx) => {
-      const actorScope = await tx.projectMember.findUnique({
-        where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
-        select: { role: true },
+      const actorRecord = await tx.user.findUnique({
+        where: { id: actor.userId },
+        select: { active: true },
       });
+      if (!actorRecord?.active) throw new BusinessError("FORBIDDEN");
+      const actorScope = actor.roles.includes("ADMINISTRATOR")
+        ? null
+        : await tx.projectMember.findUnique({
+            where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
+            select: { role: true },
+          });
       try {
         requireAllowed(actor, {
           capability: "MANAGE_PROJECT",

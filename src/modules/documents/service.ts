@@ -29,9 +29,15 @@ const activeStatuses = [
 ] as const;
 
 async function scope(actor: Actor, projectId: string) {
+  const db = getDatabase();
+  const user = await db.user.findUnique({
+    where: { id: actor.userId },
+    select: { active: true },
+  });
+  if (!user?.active) throw new BusinessError("FORBIDDEN");
   if (actor.roles.includes("ADMINISTRATOR")) return true;
   return Boolean(
-    await getDatabase().projectMember.findUnique({
+    await db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: actor.userId } },
       select: { userId: true },
     }),

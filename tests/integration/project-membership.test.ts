@@ -143,6 +143,43 @@ test("employee and unscoped manager are denied without changing membership", asy
   );
 });
 
+test("inactive manager is denied membership changes even with stale project scope", async () => {
+  const inactiveManager = await createUser("inactive-manager", ["MANAGER"], false);
+  await db.projectMember.createMany({
+    skipDuplicates: true,
+    data: [
+      { projectId: managedProjectId, userId: inactiveManager.userId, role: "MANAGER" },
+      { projectId: unscopedProjectId, userId: inactiveManager.userId, role: "MANAGER" },
+      { projectId: unscopedProjectId, userId: targetId, role: "CONTRIBUTOR" },
+    ],
+  });
+  await assert.rejects(
+    () =>
+      assignProjectMember(inactiveManager, {
+        projectId: managedProjectId,
+        userId: targetId,
+        role: "CONTRIBUTOR",
+      }),
+    /forbidden/,
+  );
+  await assert.rejects(
+    () =>
+      removeProjectMember(inactiveManager, {
+        projectId: unscopedProjectId,
+        userId: targetId,
+      }),
+    /forbidden/,
+  );
+  assert.equal(
+    await db.projectMember.count({ where: { projectId: managedProjectId, userId: targetId } }),
+    0,
+  );
+  assert.equal(
+    await db.projectMember.count({ where: { projectId: unscopedProjectId, userId: targetId } }),
+    1,
+  );
+});
+
 test("project-scoped manager can assign a member only within managed scope", async () => {
   const membership = await assignProjectMember(manager, {
     projectId: managedProjectId,

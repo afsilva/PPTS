@@ -63,6 +63,15 @@
       "emailVerified": true,
       "enabled": true,
       "realmRoles": ["EMPLOYEE"]
+    },
+    {
+      "username": "morgan.manager",
+      "firstName": "Morgan",
+      "lastName": "Rivera",
+      "email": "morgan.manager@local.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "realmRoles": ["EMPLOYEE", "MANAGER"]
     }
   ]
 }

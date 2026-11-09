@@ -1,11 +1,13 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
+import { getOrganizationTimeZone } from "@/config/env";
 import { getDatabase } from "@/db/client";
 import type { Actor } from "@/modules/authorization/policy";
 import { requireAllowed } from "@/modules/authorization/policy";
 import { durationSeconds, durationSince, transitionClock } from "./domain";
 import { BusinessError } from "@/modules/business/errors";
+import { zonedDayWeekBounds } from "@/modules/reports/timezone";
 import type { ClockOutInput, ClockSelection, PresenceInput } from "./schemas";
 
 function authorizeClock(actor: Actor) {
@@ -25,13 +27,13 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export async function getDashboard(actor: Actor) {
+export async function getDashboard(actor: Actor, generatedAt = new Date()) {
   requireAllowed(actor, { capability: "VIEW_STATUS_BOARD" });
   const db = getDatabase();
-  const now = new Date();
-  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const weekStart = new Date(todayStart);
-  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+  const now = new Date(generatedAt);
+  if (!Number.isFinite(now.getTime())) throw new BusinessError("INVALID_TARGET");
+  const organizationTimeZone = getOrganizationTimeZone();
+  const { dayStart: todayStart, weekStart } = zonedDayWeekBounds(now, organizationTimeZone);
 
   const canAdministerMemberships =
     actor.roles.includes("ADMINISTRATOR") || actor.roles.includes("MANAGER");
@@ -155,6 +157,7 @@ export async function getDashboard(actor: Actor) {
 
   return {
     generatedAt: now,
+    organizationTimeZone,
     user: {
       displayName: user.displayName,
       presence: user.presence?.state ?? "OFF_DUTY",

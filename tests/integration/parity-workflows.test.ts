@@ -18,11 +18,12 @@ const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required for integration tests.");
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 const marker = randomUUID();
-let admin: Actor, employee: Actor, projectId: string, clientId: string, statusId: string;
-let adminId: string, employeeId: string;
+let admin: Actor, employee: Actor, inactiveManager: Actor;
+let projectId: string, clientId: string, statusId: string;
+let adminId: string, employeeId: string, inactiveManagerId: string;
 
 before(async () => {
-  const [a, e] = await Promise.all([
+  const [a, e, m] = await Promise.all([
     db.user.create({
       data: {
         issuer: "https://parity.invalid",
@@ -43,11 +44,24 @@ before(async () => {
         roles: { create: { role: "EMPLOYEE" } },
       },
     }),
+    db.user.create({
+      data: {
+        issuer: "https://parity.invalid",
+        subject: `m-${marker}`,
+        username: `m-${marker}`,
+        displayName: "Inactive Parity Manager",
+        email: `m-${marker}@invalid.test`,
+        active: false,
+        roles: { create: { role: "MANAGER" } },
+      },
+    }),
   ]);
   adminId = a.id;
   employeeId = e.id;
+  inactiveManagerId = m.id;
   admin = { userId: a.id, roles: ["ADMINISTRATOR"] };
   employee = { userId: e.id, roles: ["EMPLOYEE"] };
+  inactiveManager = { userId: m.id, roles: ["MANAGER"] };
   const client = await db.client.create({ data: { name: `Parity Client ${marker}` } });
   clientId = client.id;
   const status = await db.projectStatus.create({ data: { name: `Parity Status ${marker}` } });
@@ -57,20 +71,23 @@ before(async () => {
       clientId,
       statusId,
       name: `Parity Project ${marker}`,
-      members: { create: { userId: e.id } },
+      members: {
+        create: [{ userId: e.id }, { userId: m.id, role: "MANAGER" }],
+      },
     },
   });
   projectId = project.id;
 });
 
 after(async () => {
-  await db.auditEvent.deleteMany({ where: { actorId: { in: [adminId, employeeId] } } });
+  const testUserIds = [adminId, employeeId, inactiveManagerId];
+  await db.auditEvent.deleteMany({ where: { actorId: { in: testUserIds } } });
   await db.projectLog.deleteMany({ where: { projectId } });
   await db.projectMember.deleteMany({ where: { projectId } });
   await db.project.deleteMany({ where: { id: projectId } });
   await db.person.deleteMany({ where: { displayName: { startsWith: "Parity" } } });
-  await db.userRole.deleteMany({ where: { userId: { in: [adminId, employeeId] } } });
-  await db.user.deleteMany({ where: { id: { in: [adminId, employeeId] } } });
+  await db.userRole.deleteMany({ where: { userId: { in: testUserIds } } });
+  await db.user.deleteMany({ where: { id: { in: testUserIds } } });
   await db.client.deleteMany({ where: { id: clientId } });
   await db.projectStatus.deleteMany({ where: { id: statusId } });
   await db.$disconnect();
@@ -222,6 +239,36 @@ test("employee cannot administer people", async () => {
       }),
     /forbidden/,
   );
+});
+
+test("inactive manager cannot use stale project scope for reads, logs, or updates", async () => {
+  await assert.rejects(() => getProjectDetail(inactiveManager, projectId), /forbidden/);
+  await assert.rejects(
+    () => addProjectLog(inactiveManager, { projectId, body: "Must not persist" }),
+    /forbidden/,
+  );
+  await assert.rejects(
+    () =>
+      updateProject(inactiveManager, {
+        id: projectId,
+        version: 1,
+        clientId,
+        statusId,
+        name: `Parity Project ${marker}`,
+        description: "Must not persist",
+        billingRate: null,
+        languages: "",
+        modules: "",
+        extras: "",
+        developmentServerName: "",
+        developmentServerPath: "",
+        productionServerName: "",
+        productionServerPath: "",
+      }),
+    /forbidden/,
+  );
+  assert.equal(await db.projectLog.count({ where: { projectId, authorId: inactiveManagerId } }), 0);
+  assert.equal((await db.project.findUniqueOrThrow({ where: { id: projectId } })).version, 1);
 });
 
 test("project member reads and writes authenticated journal while update remains scoped", async () => {

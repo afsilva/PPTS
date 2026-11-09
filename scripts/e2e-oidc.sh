@@ -210,7 +210,60 @@ else
   check "Keycloak SSO session terminated by logout" 1
 fi
 
-# --- 4. Employee login --------------------------------------------------------
+# --- 5. Manager scope --------------------------------------------------------
+JAR_M="$WORK/jar-morgan.txt"; rm -f "$JAR_M"
+result=$(perform_login "$JAR_M" "morgan.manager" "${KEYCLOAK_MORGAN_PASSWORD}")
+final_url=$(printf '%s' "$result" | awk '{print $1}')
+final_code=$(printf '%s' "$result" | awk '{print $2}')
+check "manager login lands on the dashboard" $(printf '%s' "$final_url" | grep -q "$APP/"; echo $?)
+check "manager login returns 200" $([ "$final_code" = 200 ]; echo $?)
+if [ -n "${DB_CONTAINER:-}" ] && [ -n "${project_id:-}" ] && [ -n "${denied_project_id:-}" ]; then
+  morgan_id=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc 'SELECT id FROM "User" WHERE username='\''morgan.manager'\'' LIMIT 1')
+  "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c "DELETE FROM \"ProjectMember\" WHERE \"userId\"='$morgan_id'::uuid; INSERT INTO \"ProjectMember\" (\"projectId\",\"userId\",role) VALUES ('$project_id'::uuid,'$morgan_id'::uuid,'MANAGER')" >/dev/null
+  code=$(curl -s -o "$WORK/manager-report.html" -w '%{http_code}' -b "$JAR_M" "$APP/reports?year=$year&month=$month")
+  check "manager can open the scoped report UI" $([ "$code" = 200 ] && grep -q 'Export protected CSV' "$WORK/manager-report.html"; echo $?)
+  code=$(curl -s -D "$WORK/manager-report-headers" -o "$WORK/manager-report.csv" -w '%{http_code}' -b "$JAR_M" "$APP/api/reports/monthly.csv?year=$year&month=$month")
+  check "manager can export a scoped monthly CSV" $([ "$code" = 200 ] && grep -qi 'content-type: text/csv' "$WORK/manager-report-headers"; echo $?)
+
+  scoped_project_row=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -AtF '|' -c "SELECT version,\"clientId\",\"statusId\",name,description,COALESCE(\"billingRateCents\"::text,''),languages,modules,extras,\"developmentServerName\",\"developmentServerPath\",\"productionServerName\",\"productionServerPath\",COALESCE(\"estimatedDesignMinutes\"::text,''),COALESCE(\"estimatedCodingMinutes\"::text,''),COALESCE(\"estimatedManagementMinutes\"::text,''),COALESCE(\"estimatedTestingMinutes\"::text,''),COALESCE(\"estimatedMaintenanceMinutes\"::text,''),COALESCE(\"coderId\"::text,''),COALESCE(\"developmentContactId\"::text,''),COALESCE(\"productionContactId\"::text,'') FROM \"Project\" WHERE id='$project_id'::uuid")
+  IFS='|' read -r current_version scoped_client_id scoped_status_id scoped_name original_description scoped_billing_rate scoped_languages scoped_modules scoped_extras scoped_dev_name scoped_dev_path scoped_prod_name scoped_prod_path scoped_est_design scoped_est_coding scoped_est_management scoped_est_testing scoped_est_maintenance scoped_coder scoped_dev_contact scoped_prod_contact <<EOF
+$scoped_project_row
+EOF
+  scoped_marker="Scoped manager update $(new_submission_id)"
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_M" \
+    --data-urlencode "id=$project_id" --data-urlencode "version=$current_version" \
+    --data-urlencode "clientId=$scoped_client_id" --data-urlencode "statusId=$scoped_status_id" \
+    --data-urlencode "name=$scoped_name" --data-urlencode "description=$scoped_marker" \
+    --data-urlencode "billingRate=$([ -n "$scoped_billing_rate" ] && printf '%s.%02d' $((scoped_billing_rate / 100)) $((scoped_billing_rate % 100)))" \
+    --data-urlencode "languages=$scoped_languages" --data-urlencode "modules=$scoped_modules" \
+    --data-urlencode "extras=$scoped_extras" --data-urlencode "developmentServerName=$scoped_dev_name" \
+    --data-urlencode "developmentServerPath=$scoped_dev_path" --data-urlencode "productionServerName=$scoped_prod_name" \
+    --data-urlencode "productionServerPath=$scoped_prod_path" --data-urlencode "estimatedDesignMinutes=$scoped_est_design" \
+    --data-urlencode "estimatedCodingMinutes=$scoped_est_coding" --data-urlencode "estimatedManagementMinutes=$scoped_est_management" \
+    --data-urlencode "estimatedTestingMinutes=$scoped_est_testing" --data-urlencode "estimatedMaintenanceMinutes=$scoped_est_maintenance" \
+    --data-urlencode "coderId=$scoped_coder" --data-urlencode "developmentContactId=$scoped_dev_contact" \
+    --data-urlencode "productionContactId=$scoped_prod_contact" -H "Origin: $APP" "$APP/api/projects/update")
+  check "project-scoped manager can update the managed project" $(printf '%s' "$location" | grep -q "result=saved"; echo $?)
+  persisted_marker=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT description FROM \"Project\" WHERE id='$project_id'::uuid")
+  check "manager project update persists within scope" $([ "$persisted_marker" = "$scoped_marker" ]; echo $?)
+
+  denied_project_row=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -AtF '|' -c "SELECT version,\"clientId\",\"statusId\",name,description FROM \"Project\" WHERE id='$denied_project_id'::uuid")
+  IFS='|' read -r denied_version denied_client_id denied_status_id denied_name denied_description <<EOF
+$denied_project_row
+EOF
+  location=$(curl -s -o /dev/null -w '%{redirect_url}' -b "$JAR_M" --data-urlencode "id=$denied_project_id" --data-urlencode "version=$denied_version" --data-urlencode "clientId=$denied_client_id" --data-urlencode "statusId=$denied_status_id" --data-urlencode "name=$denied_name" --data-urlencode 'description=must-not-persist' -H "Origin: $APP" "$APP/api/projects/update")
+  check "manager update outside project scope fails closed" $(printf '%s' "$location" | grep -q 'result=not-allowed'; echo $?)
+  unchanged_description=$("$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -tAc "SELECT description FROM \"Project\" WHERE id='$denied_project_id'::uuid")
+  check "out-of-scope manager update has no side effect" $([ "$unchanged_description" = "$denied_description" ]; echo $?)
+
+  "$PODMAN" exec "$DB_CONTAINER" psql -U ppts -d ppts -c "UPDATE \"Project\" SET description='$original_description',version=$current_version WHERE id='$project_id'::uuid; DELETE FROM \"ProjectMember\" WHERE \"userId\"='$morgan_id'::uuid" >/dev/null
+  code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_M" -X POST -H "Origin: $APP" "$APP/auth/logout")
+  check "manager logout succeeds" $([ "$code" = 303 -o "$code" = 200 ]; echo $?)
+else
+  bad "manager scope fixtures are unavailable"
+fi
+
+# --- 5. Employee login --------------------------------------------------------
 JAR_B="$WORK/jar-casey.txt"; rm -f "$JAR_B"
 result=$(perform_login "$JAR_B" "casey.employee" "${KEYCLOAK_CASEY_PASSWORD}")
 final_url=$(printf '%s' "$result" | awk '{print $1}')

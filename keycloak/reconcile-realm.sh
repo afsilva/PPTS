@@ -52,9 +52,23 @@ for role in EMPLOYEE MANAGER ADMINISTRATOR AUDITOR; do
          -b '[{"id":"'"$role_id"'","name":"'"$role"'"}]' >/dev/null ;;
   esac
 done
-for item in "alex.admin:$KEYCLOAK_ALEX_PASSWORD" "casey.employee:$KEYCLOAK_CASEY_PASSWORD"; do
-  username=${item%%:*}; password=${item#*:}
+# The import strategy ignores an already-persisted realm, so reconciliation
+# also creates newly introduced synthetic accounts during upgrades.
+morgan_id=$($kcadm get users -r ppts -q username=morgan.manager --fields id --format csv --noquotes | sed -n '1p')
+if [ -z "$morgan_id" ]; then
+  $kcadm create users -r ppts \
+    -s username=morgan.manager -s firstName=Morgan -s lastName=Rivera \
+    -s email=morgan.manager@local.invalid -s emailVerified=true -s enabled=true >/dev/null
+  morgan_id=$($kcadm get users -r ppts -q username=morgan.manager --fields id --format csv --noquotes | sed -n '1p')
+fi
+[ -n "$morgan_id" ] || { echo "Could not reconcile morgan.manager" >&2; exit 1; }
+
+for item in "alex.admin:$KEYCLOAK_ALEX_PASSWORD:ADMINISTRATOR" "casey.employee:$KEYCLOAK_CASEY_PASSWORD:EMPLOYEE" "morgan.manager:$KEYCLOAK_MORGAN_PASSWORD:EMPLOYEE,MANAGER"; do
+  username=${item%%:*}; remainder=${item#*:}; password=${remainder%%:*}; roles=${remainder#*:}
   id=$($kcadm get users -r ppts -q "username=$username" --fields id --format csv --noquotes | sed -n '1p')
   [ -n "$id" ] || { echo "Canonical local user $username is missing" >&2; exit 1; }
   $kcadm set-password -r ppts --userid "$id" --new-password "$password" >/dev/null
+  old_ifs=$IFS; IFS=,
+  for role in $roles; do $kcadm add-roles -r ppts --uid "$id" --rolename "$role" >/dev/null; done
+  IFS=$old_ifs
 done

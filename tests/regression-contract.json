@@ -405,6 +405,14 @@
         {
           "file": "scripts/e2e-oidc.sh",
           "contains": "dashboard reads current work from the database"
+        },
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "dashboard totals use organization-local day and Monday-week boundaries"
+        },
+        {
+          "file": "tests/integration/time-tracking.test.ts",
+          "contains": "dashboard totals clip correctly across the spring DST transition"
         }
       ]
     },
@@ -573,7 +581,15 @@
         },
         {
           "file": "tests/integration/reporting-audit.test.ts",
+          "contains": "inactive and unscoped managers cannot read cross-user report data"
+        },
+        {
+          "file": "tests/integration/reporting-audit.test.ts",
           "contains": "report clips organization-local month boundaries and keeps duplicate names separate"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "manager can export a scoped monthly CSV"
         }
       ]
     },
@@ -596,6 +612,10 @@
         {
           "file": "tests/integration/project-membership.test.ts",
           "contains": "project-scoped manager can assign a member only within managed scope"
+        },
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "inactive manager is denied membership changes even with stale project scope"
         }
       ]
     },
@@ -651,6 +671,10 @@
         {
           "file": "tests/unit/authorization-policy.test.ts",
           "contains": "READ_PROJECT"
+        },
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "inactive manager cannot use stale project scope for reads, logs, or updates"
         }
       ]
     },
@@ -673,6 +697,14 @@
         {
           "file": "tests/unit/project-schemas.test.ts",
           "contains": "project update converts money to cents"
+        },
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "inactive manager cannot use stale project scope for reads, logs, or updates"
+        },
+        {
+          "file": "scripts/e2e-oidc.sh",
+          "contains": "manager update outside project scope fails closed"
         }
       ]
     },
@@ -684,6 +716,10 @@
         {
           "file": "tests/unit/project-schemas.test.ts",
           "contains": "project journal requires bounded nonblank plain text"
+        },
+        {
+          "file": "tests/integration/parity-workflows.test.ts",
+          "contains": "inactive manager cannot use stale project scope for reads, logs, or updates"
         }
       ]
     },
@@ -728,6 +764,10 @@
         {
           "file": "tests/integration/project-membership.test.ts",
           "contains": "project manager removes another member with audit but cannot remove self"
+        },
+        {
+          "file": "tests/integration/project-membership.test.ts",
+          "contains": "inactive manager is denied membership changes even with stale project scope"
         }
       ]
     },

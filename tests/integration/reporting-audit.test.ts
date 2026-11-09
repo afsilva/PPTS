@@ -21,6 +21,7 @@ let admin: Actor;
 let auditor: Actor;
 let manager: Actor;
 let employee: Actor;
+let inactiveManager: Actor;
 
 before(async () => {
   for (const role of ["ADMINISTRATOR", "AUDITOR", "MANAGER", "EMPLOYEE", "EMPLOYEE"] as const) {
@@ -41,6 +42,19 @@ before(async () => {
     else if (role === "MANAGER") manager = actor;
     else if (!employee) employee = actor;
   }
+  const inactive = await db.user.create({
+    data: {
+      issuer: "https://report.invalid",
+      subject: `inactive-manager-${marker}`,
+      username: `inactive-manager-${marker}`,
+      displayName: "Inactive Report Manager",
+      email: `inactive-manager-${marker}@invalid.test`,
+      active: false,
+      roles: { create: { role: "MANAGER" } },
+    },
+  });
+  userIds.push(inactive.id);
+  inactiveManager = { userId: inactive.id, roles: ["MANAGER"] };
   const client = await db.client.create({ data: { name: `Report Client ${marker}` } });
   clientId = client.id;
   const status = await db.projectStatus.create({ data: { name: `Report Status ${marker}` } });
@@ -123,6 +137,27 @@ test("report authorization scopes managers while administrators and auditors rea
     adminGroups.map((group) => group.totalSeconds),
   );
   await assert.rejects(() => getMonthlyReport(employee, 2026, 3), /forbidden/);
+});
+
+test("inactive and unscoped managers cannot read cross-user report data", async () => {
+  const unscopedManager = await db.user.create({
+    data: {
+      issuer: "https://report.invalid",
+      subject: `unscoped-manager-${marker}`,
+      username: `unscoped-manager-${marker}`,
+      displayName: "Unscoped Report Manager",
+      email: `unscoped-manager-${marker}@invalid.test`,
+      roles: { create: { role: "MANAGER" } },
+    },
+  });
+  userIds.push(unscopedManager.id);
+  assert.deepEqual(
+    await getMonthlyReport({ userId: unscopedManager.id, roles: ["MANAGER"] }, 2026, 3),
+    [],
+  );
+  // Services normally receive actors only from readSession, which rejects an
+  // inactive account. Defense in depth also rejects a direct stale actor.
+  await assert.rejects(() => getMonthlyReport(inactiveManager, 2026, 3), /forbidden/);
 });
 
 test("report clips organization-local month boundaries and keeps duplicate names separate", async () => {

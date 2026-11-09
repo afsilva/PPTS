@@ -167,7 +167,7 @@ export default async function Home({
                 weekday: "long",
                 month: "long",
                 day: "numeric",
-                timeZone: "UTC",
+                timeZone: dashboard.organizationTimeZone,
               })}
             </p>
             <h1>Hello, {displayName.split(" ")[0]}.</h1>
@@ -238,7 +238,7 @@ export default async function Home({
             </div>
             <div className={styles.todayMetric}>
               <strong>{duration(dashboard.today.seconds)}</strong>
-              <span>tracked in UTC</span>
+              <span>tracked in {dashboard.organizationTimeZone}</span>
             </div>
             <dl className={styles.stats}>
               <div>

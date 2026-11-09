@@ -7,24 +7,23 @@ import { BusinessError } from "@/modules/business/errors";
 import { listProjectDocuments } from "@/modules/documents/service";
 import type { ProjectLogInput, ProjectUpdateInput } from "./schemas";
 
-async function projectScope(actor: Actor, projectId: string) {
+async function activeProjectScope(actor: Actor, projectId: string, managerOnly = false) {
+  const db = getDatabase();
+  const user = await db.user.findUnique({
+    where: { id: actor.userId },
+    select: { active: true },
+  });
+  if (!user?.active) throw new BusinessError("FORBIDDEN");
   if (actor.roles.includes("ADMINISTRATOR")) return true;
-  const member = await getDatabase().projectMember.findUnique({
+  const member = await db.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId: actor.userId } },
     select: { role: true },
   });
-  return member?.role === "MANAGER";
+  return Boolean(member && (!managerOnly || member.role === "MANAGER"));
 }
 
 export async function getProjectDetail(actor: Actor, projectId: string) {
-  const scoped =
-    actor.roles.includes("ADMINISTRATOR") ||
-    Boolean(
-      await getDatabase().projectMember.findUnique({
-        where: { projectId_userId: { projectId, userId: actor.userId } },
-        select: { userId: true },
-      }),
-    );
+  const scoped = await activeProjectScope(actor, projectId);
   try {
     requireAllowed(actor, { capability: "READ_PROJECT", scoped });
   } catch {
@@ -55,11 +54,16 @@ export async function getProjectDetail(actor: Actor, projectId: string) {
   const canWriteDocuments =
     !actor.roles.includes("AUDITOR") &&
     (actor.roles.includes("ADMINISTRATOR") || Boolean(membership));
-  return { project, documents, canWriteDocuments, canManage: await projectScope(actor, projectId) };
+  return {
+    project,
+    documents,
+    canWriteDocuments,
+    canManage: await activeProjectScope(actor, projectId, true),
+  };
 }
 
 export async function getProjectEditorOptions(actor: Actor, projectId: string) {
-  const scoped = await projectScope(actor, projectId);
+  const scoped = await activeProjectScope(actor, projectId, true);
   try {
     requireAllowed(actor, { capability: "MANAGE_PROJECT", scoped });
   } catch {
@@ -75,7 +79,7 @@ export async function getProjectEditorOptions(actor: Actor, projectId: string) {
 }
 
 export async function updateProject(actor: Actor, input: ProjectUpdateInput) {
-  const scoped = await projectScope(actor, input.id);
+  const scoped = await activeProjectScope(actor, input.id, true);
   try {
     requireAllowed(actor, { capability: "MANAGE_PROJECT", scoped });
   } catch {
@@ -127,14 +131,7 @@ export async function updateProject(actor: Actor, input: ProjectUpdateInput) {
 }
 
 export async function addProjectLog(actor: Actor, input: ProjectLogInput) {
-  const scoped =
-    actor.roles.includes("ADMINISTRATOR") ||
-    Boolean(
-      await getDatabase().projectMember.findUnique({
-        where: { projectId_userId: { projectId: input.projectId, userId: actor.userId } },
-        select: { userId: true },
-      }),
-    );
+  const scoped = await activeProjectScope(actor, input.projectId);
   try {
     requireAllowed(actor, { capability: "WRITE_PROJECT_LOG", scoped });
   } catch {

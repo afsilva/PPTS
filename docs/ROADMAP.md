@@ -22,24 +22,25 @@
 ### Implemented business slice
 
 - Pure deny-by-default capability policy and session-derived acting identity
-- Database-backed limited status board, current timer, personal recent time, and UTC day/week totals
+- Database-backed limited status board, current timer, personal recent time, and organization-timezone day/Monday-week totals with DST-aware clipping
 - `OFF_DUTY`, `AVAILABLE`, and `WORKING` presence semantics
 - Transactional own clock-in, clock-out, and atomic project/work-code switching
 - Actor-scoped UUID replay receipts for clock/presence commands, with canonical SHA-256 payload fingerprints, mismatch rejection, 24-hour retention, and explicit cleanup
 - Active user/client/project/work-code validation and fail-closed project membership
-- Narrow administrator and project-manager membership assignment with positive and negative tests
+- Narrow administrator and database-scoped project-manager membership assignment/update with positive, negative, inactive-actor, HTTP, and OIDC E2E tests
 - Per-user row serialization, Serializable transactions, and PostgreSQL one-open-entry enforcement
 - Atomic success audit events and sanitized best-effort failure audit events
 - Bounded validated form bodies and exact-Origin protection on cookie-authenticated mutations
 - Idempotent synthetic business-catalog seed without fake users or identity-derived membership grants
 - Unit, real-PostgreSQL integration/concurrency, browser-facing OIDC/business E2E, and isolated PostgreSQL logical backup/restore smoke coverage
+- Real OIDC manager identity proving scoped report UI/CSV, managed-project update, out-of-scope denial without side effects, and logout
 
 ### Remaining before the vertical slice is complete
 
 - Production-IdP sandbox and production HTTPS/MFA validation
-- Remaining authorization-matrix capabilities and cross-user negative tests
+- Remaining authorization-matrix work outside the shipped time/project/report/document slice, including explicit auditor document-grant policy and lifecycle administration
 - Production-edge distributed rate limits, scheduled session/receipt cleanup, and audit retention/export/alerting
-- Dashboard day/week boundaries remain UTC; monthly reporting now uses configurable organization time
+- Production business-owner approval and reconciliation of the configured organization timezone; UTC remains the safe local default
 
 ## Milestone 2 — Core administration
 

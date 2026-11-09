@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { zonedMonthBounds, zonedYearMonth } from "../../src/modules/reports/timezone";
+import {
+  zonedDayWeekBounds,
+  zonedMonthBounds,
+  zonedYearMonth,
+} from "../../src/modules/reports/timezone";
 
 test("UTC month boundaries and December rollover are exact", () => {
   assert.deepEqual(zonedMonthBounds(2026, 2, "UTC"), {
@@ -28,6 +32,25 @@ test("New York boundaries account for winter, summer, and DST transition offsets
   assert.equal((march.end.getTime() - march.start.getTime()) / 3_600_000, 743);
 });
 
+test("dashboard day and Monday-week boundaries follow the organization zone", () => {
+  assert.deepEqual(zonedDayWeekBounds(new Date("2026-07-08T03:30:00Z"), "America/New_York"), {
+    dayStart: new Date("2026-07-07T04:00:00.000Z"),
+    nextDayStart: new Date("2026-07-08T04:00:00.000Z"),
+    weekStart: new Date("2026-07-06T04:00:00.000Z"),
+  });
+  assert.deepEqual(zonedDayWeekBounds(new Date("2026-03-09T12:00:00Z"), "America/New_York"), {
+    dayStart: new Date("2026-03-09T04:00:00.000Z"),
+    nextDayStart: new Date("2026-03-10T04:00:00.000Z"),
+    weekStart: new Date("2026-03-09T04:00:00.000Z"),
+  });
+});
+
+test("calendar boundaries handle skipped civil dates without failing open", () => {
+  const skipped = zonedDayWeekBounds(new Date("2011-12-31T12:00:00Z"), "Pacific/Apia");
+  assert.equal(skipped.dayStart.toISOString(), "2011-12-31T10:00:00.000Z");
+  assert.equal(skipped.nextDayStart.toISOString(), "2012-01-01T10:00:00.000Z");
+});
+
 test("current reporting month is derived in the organization zone", () => {
   assert.deepEqual(zonedYearMonth(new Date("2026-01-01T02:00:00Z"), "America/New_York"), {
     year: 2025,
@@ -39,4 +62,5 @@ test("invalid zones and reporting months fail closed", () => {
   assert.throws(() => zonedMonthBounds(2026, 0, "UTC"), /Invalid reporting month/);
   assert.throws(() => zonedMonthBounds(2026, 13, "UTC"), /Invalid reporting month/);
   assert.throws(() => zonedMonthBounds(2026, 1, "Not\/A_Zone"));
+  assert.throws(() => zonedDayWeekBounds(new Date("invalid"), "UTC"), /Invalid boundary date/);
 });

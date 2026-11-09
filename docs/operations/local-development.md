@@ -98,7 +98,7 @@ Advanced use may point directly to an external environment file:
 make start ENV_FILE="$HOME/.config/ppts/development.env"
 ```
 
-If `PPTS_PORT` is present in that environment file, it controls the published port and health URL. Otherwise the Make variable/default (`3000`) is used. `ORGANIZATION_TIME_ZONE` must be an IANA identifier such as `UTC`, `America/New_York`, or `Europe/London`; it controls monthly HTML and CSV month boundaries and defaults to `UTC`. Change it only in the protected external environment file, then rebuild/restart the app. Changing it changes which boundary-crossing entries belong to a report month, so production changes require business-owner approval and reconciliation.
+If `PPTS_PORT` is present in that environment file, it controls the published port and health URL. Otherwise the Make variable/default (`3000`) is used. `ORGANIZATION_TIME_ZONE` must be an IANA identifier such as `UTC`, `America/New_York`, or `Europe/London`; it controls dashboard day/Monday-week totals and monthly HTML/CSV boundaries, and defaults to `UTC`. Change it only in the protected external environment file, then rebuild/restart the app. Changing it changes which boundary-crossing entries belong to a report month, so production changes require business-owner approval and reconciliation.
 
 ### Direct Podman access
 

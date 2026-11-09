@@ -78,7 +78,7 @@ ensure_env() {
   KEYCLOAK_PORT=$(sed -n 's/^KEYCLOAK_PORT=//p' "$ENV_FILE" | tail -n 1); KEYCLOAK_PORT=${KEYCLOAK_PORT:-8080}
   validate_ports
 
-  for key in POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_ALEX_PASSWORD KEYCLOAK_CASEY_PASSWORD SESSION_SECRET; do replace_secret "$key"; done
+  for key in POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_ALEX_PASSWORD KEYCLOAK_CASEY_PASSWORD KEYCLOAK_MORGAN_PASSWORD SESSION_SECRET; do replace_secret "$key"; done
     umask "$old_umask"
     chmod 600 "$ENV_FILE"
     printf '\nCreated private runtime configuration with generated credentials at:\n  %s\n\nRun make start again to launch PPTS.\n' "$ENV_FILE" >&2
@@ -91,7 +91,19 @@ ensure_env() {
     *) fail "$ENV_FILE permissions are $mode; run: chmod 600 '$ENV_FILE'" ;;
   esac
 
-  for key in POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_ALEX_PASSWORD KEYCLOAK_CASEY_PASSWORD SESSION_SECRET; do
+  # Synthetic account passwords are reconciled into Keycloak on every start,
+  # unlike database/bootstrap credentials baked into volumes. Generate newly
+  # introduced account passwords during an upgrade without rotating old ones.
+  for key in KEYCLOAK_MORGAN_PASSWORD; do
+    value=$(sed -n "s/^$key=//p" "$ENV_FILE" | tail -n 1)
+    if [ -z "$value" ]; then
+      [ -w "$ENV_FILE" ] || fail "$key is missing and $ENV_FILE is not writable"
+      value=$(openssl rand -base64 48 | tr -d '=+/\n' | cut -c1-64)
+      printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+    fi
+  done
+
+  for key in POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KEYCLOAK_ALEX_PASSWORD KEYCLOAK_CASEY_PASSWORD KEYCLOAK_MORGAN_PASSWORD SESSION_SECRET; do
     value=$(sed -n "s/^$key=//p" "$ENV_FILE" | tail -n 1)
     [ -n "$value" ] || fail "$key must be set in $ENV_FILE"
     case "$value" in replace-with-*|local-development-only) fail "replace placeholder $key in $ENV_FILE" ;; esac

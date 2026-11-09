@@ -6,6 +6,7 @@ import { PrismaClient } from "../../src/generated/prisma/client";
 import {
   clockIn,
   clockOut,
+  getDashboard,
   purgeExpiredClockMutationReceipts,
   setAvailable,
   setPresence,
@@ -304,6 +305,64 @@ test("concurrent available and clock-in preserve a consistent snapshot", async (
     results.some((result) => result.status === "fulfilled"),
     true,
   );
+});
+
+test("dashboard totals use organization-local day and Monday-week boundaries", async () => {
+  const previousZone = process.env.ORGANIZATION_TIME_ZONE;
+  process.env.ORGANIZATION_TIME_ZONE = "America/New_York";
+  const ids: string[] = [];
+  try {
+    const fixtures = [
+      ["2026-07-05T12:00:00Z", "2026-07-05T13:00:00Z"],
+      ["2026-07-06T04:00:00Z", "2026-07-06T05:00:00Z"],
+      ["2026-07-07T03:30:00Z", "2026-07-07T04:30:00Z"],
+      ["2026-07-07T23:30:00Z", "2026-07-08T00:30:00Z"],
+      ["2026-07-08T03:30:00Z", "2026-07-08T03:40:00Z"],
+    ] as const;
+    for (const [startedAt, endedAt] of fixtures) {
+      const entry = await db.timeEntry.create({
+        data: {
+          userId,
+          projectId: projectA,
+          workCodeId: workCode,
+          startedAt: new Date(startedAt),
+          endedAt: new Date(endedAt),
+        },
+      });
+      ids.push(entry.id);
+    }
+    const dashboard = await getDashboard(actor, new Date("2026-07-08T03:45:00Z"));
+    assert.equal(dashboard.organizationTimeZone, "America/New_York");
+    assert.deepEqual(dashboard.today, { seconds: 6_000, entries: 3 });
+    assert.deepEqual(dashboard.week, { seconds: 11_400 });
+  } finally {
+    await db.timeEntry.deleteMany({ where: { id: { in: ids } } });
+    if (previousZone === undefined) delete process.env.ORGANIZATION_TIME_ZONE;
+    else process.env.ORGANIZATION_TIME_ZONE = previousZone;
+  }
+});
+
+test("dashboard totals clip correctly across the spring DST transition", async () => {
+  const previousZone = process.env.ORGANIZATION_TIME_ZONE;
+  process.env.ORGANIZATION_TIME_ZONE = "America/New_York";
+  const entry = await db.timeEntry.create({
+    data: {
+      userId,
+      projectId: projectA,
+      workCodeId: workCode,
+      startedAt: new Date("2026-03-08T04:30:00Z"),
+      endedAt: new Date("2026-03-08T08:30:00Z"),
+    },
+  });
+  try {
+    const dashboard = await getDashboard(actor, new Date("2026-03-08T12:00:00Z"));
+    // Local day starts at 05:00Z before the 02:00 -> 03:00 spring jump.
+    assert.deepEqual(dashboard.today, { seconds: 12_600, entries: 1 });
+  } finally {
+    await db.timeEntry.delete({ where: { id: entry.id } });
+    if (previousZone === undefined) delete process.env.ORGANIZATION_TIME_ZONE;
+    else process.env.ORGANIZATION_TIME_ZONE = previousZone;
+  }
 });
 
 test("owner corrects completed time with audit, stale and overlap protection", async () => {

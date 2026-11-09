@@ -28,38 +28,24 @@ function parts(date: Date, timeZone: string) {
 }
 
 function localToInstant(year: number, month: number, day: number, timeZone: string) {
-  const target = Date.UTC(year, month - 1, day, 0, 0, 0);
-  let guess = target;
-
-  // Intl exposes local civil fields but not the offset. Iteratively adjust the
-  // candidate until its fields equal local midnight. Month boundaries are
-  // selected because supported IANA zones do not transition at that instant.
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const represented = parts(new Date(guess), timeZone);
-    const representedAsUtc = Date.UTC(
-      represented.year,
-      represented.month - 1,
-      represented.day,
-      represented.hour,
-      represented.minute,
-      represented.second,
-    );
-    const next = guess + target - representedAsUtc;
-    if (next === guess) break;
-    guess = next;
+  const target = Date.UTC(year, month - 1, day);
+  const targetKey = year * 10_000 + month * 100 + day;
+  // Search for the first instant whose local calendar date is the requested
+  // date or later. This handles zones that repeat midnight or skip midnight
+  // (and even a whole civil date) without relying on a fixed UTC offset.
+  let lower = target - 3 * 86_400_000;
+  let upper = target + 3 * 86_400_000;
+  while (lower < upper) {
+    const candidate = Math.floor((lower + upper) / 2);
+    const represented = parts(new Date(candidate), timeZone);
+    const representedKey = represented.year * 10_000 + represented.month * 100 + represented.day;
+    if (representedKey < targetKey) lower = candidate + 1;
+    else upper = candidate;
   }
-
-  const actual = parts(new Date(guess), timeZone);
-  if (
-    actual.year !== year ||
-    actual.month !== month ||
-    actual.day !== day ||
-    actual.hour !== 0 ||
-    actual.minute !== 0 ||
-    actual.second !== 0
-  )
-    throw new Error("Unable to resolve local month boundary.");
-  return new Date(guess);
+  const actual = parts(new Date(lower), timeZone);
+  const actualKey = actual.year * 10_000 + actual.month * 100 + actual.day;
+  if (actualKey < targetKey) throw new Error("Unable to resolve local calendar boundary.");
+  return new Date(lower);
 }
 
 function validateTimeZone(timeZone: string) {
@@ -74,6 +60,37 @@ export function zonedYearMonth(date: Date, timeZone: string) {
   validateTimeZone(timeZone);
   const value = parts(date, timeZone);
   return { year: value.year, month: value.month };
+}
+
+/**
+ * Resolves the local calendar day and Monday-based week containing `date`.
+ * Returned instants remain correct when the zone offset changes during a day.
+ */
+export function zonedDayWeekBounds(date: Date, timeZone: string) {
+  validateTimeZone(timeZone);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid boundary date.");
+  const local = parts(date, timeZone);
+  const civilDay = new Date(Date.UTC(local.year, local.month - 1, local.day));
+  const weekday = civilDay.getUTCDay();
+  const monday = new Date(civilDay);
+  monday.setUTCDate(monday.getUTCDate() - ((weekday + 6) % 7));
+  const tomorrow = new Date(civilDay);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  return {
+    dayStart: localToInstant(local.year, local.month, local.day, timeZone),
+    nextDayStart: localToInstant(
+      tomorrow.getUTCFullYear(),
+      tomorrow.getUTCMonth() + 1,
+      tomorrow.getUTCDate(),
+      timeZone,
+    ),
+    weekStart: localToInstant(
+      monday.getUTCFullYear(),
+      monday.getUTCMonth() + 1,
+      monday.getUTCDate(),
+      timeZone,
+    ),
+  };
 }
 
 export function zonedMonthBounds(year: number, month: number, timeZone: string) {
