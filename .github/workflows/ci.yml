@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
@@ -22,6 +22,8 @@ jobs:
         run: echo "POLICY_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
       - name: Enforce package cooling-off and deprecation policy before install
         run: node scripts/check-npm-supply-chain.mjs
+      - name: Reject mutable CI action references before install
+        run: node scripts/check-ci-action-pins.mjs
       - name: Extract dependencies without lifecycle scripts
         run: npm ci --ignore-scripts
       - name: Reject every known dependency vulnerability
@@ -55,8 +57,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://ppts_test:integration-only-password@127.0.0.1:5432/ppts_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm

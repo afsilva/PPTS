@@ -6,7 +6,7 @@
 - PostgreSQL/Prisma schema with relational constraints
 - Local Compose deployment and health endpoints
 - Responsive, accessible dashboard foundation and design tokens
-- Security headers, dependency audit, CI, and living documentation
+- Security headers, dependency/action-pin audit, CI, and living documentation
 
 ## Milestone 1 — Secure time-tracking vertical slice (current)
 
