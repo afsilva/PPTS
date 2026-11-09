@@ -228,6 +228,23 @@ services:
     pids_limit: 256
     cpus: 1.0
 
+  maintenance:
+    build: { context: ., target: maintenance }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ppts:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/ppts
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-86400}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 128
+    cpus: 0.25
+
   app:
     build: { context: ., target: runner }
     restart: unless-stopped

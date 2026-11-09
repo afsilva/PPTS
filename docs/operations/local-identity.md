@@ -40,7 +40,7 @@ The Keycloak console administrator is `local-admin`; its generated password is s
 - The session cookie contains no OIDC token and is validated against an authoritative revocable server-side record; the ID token is encrypted server-side only for provider logout.
 - Server-side session records support revocation and inactive-user enforcement; an eight-hour absolute limit, one-hour idle limit, and transactionally enforced five-active-session cap constrain replay.
 - Keycloak progressive brute-force protection temporarily locks accounts after repeated credential failures; production additionally requires trusted-edge distributed throttling and MFA.
-- Revoked, expired, and idle rows are removed by `npm run maintenance:sessions`, which must be scheduled and monitored in production.
+- Revoked, expired, and idle rows are removed by the scheduled Compose maintenance service; `npm run maintenance:sessions` remains available for an explicit one-shot run. Production must monitor the scheduler and failures.
 - User identity binds only on `(issuer, subject)`, never email.
 - The OIDC client has `fullScopeAllowed=false`; only the four approved PPTS realm roles are explicitly mapped into its token scope.
 - Administrators may associate an already provisioned active login with one employee business profile in `/people`. This link does not create an account, change credentials, or change roles; those remain Keycloak-managed. Contacts cannot be linked, and unlinking preserves the login, profile, sessions, time entries, and audit records.

@@ -14,7 +14,7 @@
 
 - Local Keycloak OIDC Authorization Code flow with PKCE, state, nonce, and reconciled brute-force lockout controls
 - Immutable issuer/subject user mapping and fail-closed role provisioning
-- Revocable server-side sessions with absolute and idle expiry, a five-active-session cap, and explicit inactive-session cleanup
+- Revocable server-side sessions with absolute and idle expiry, a five-active-session cap, and scheduled inactive-session/replay-receipt cleanup
 - Origin-protected application logout and provider SSO termination
 - Sanitized authentication audit events
 - Separate application/identity databases and idempotent realm reconciliation
@@ -39,7 +39,7 @@
 
 - Production-IdP sandbox and production HTTPS/MFA validation
 - Remaining authorization-matrix work outside the shipped time/project/report/document slice, including explicit auditor document-grant policy and lifecycle administration
-- Production-edge distributed rate limits, scheduled session/receipt cleanup, and audit retention/export/alerting
+- Production-edge distributed rate limits and audit retention/export/alerting; production deployment must monitor the scheduled cleanup worker
 - Production business-owner approval and reconciliation of the configured organization timezone; UTC remains the safe local default
 
 ## Milestone 2 — Core administration

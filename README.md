@@ -100,8 +100,9 @@ npm run typecheck
 npm test                  # pure unit tests; included in verify
 npm run test:contract     # every route/business action retains test evidence
 npm run test:integration  # real PostgreSQL; CI migrates an empty test database
-npm run maintenance:sessions        # purge revoked, expired, and idle sessions
-npm run maintenance:clock-receipts  # purge expired clock/presence retry receipts
+npm run maintenance:sessions        # one-shot purge of inactive sessions
+npm run maintenance:clock-receipts  # one-shot purge of expired retry receipts
+npm run maintenance:run             # scheduled combined cleanup worker
 npm run operations:backup-restore-smoke  # logical restore into an isolated temporary DB
 npm run build
 npm run verify             # static, dependency, unit, contract, and build gates
