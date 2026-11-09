@@ -2,7 +2,7 @@
 
 A secure, modern successor to the original **People & Projects Tracking System**. PPTS tracks team presence, project work, time entries, and—incrementally—projects, reporting, notes, and private documents.
 
-> **Status:** pre-release modernization. Local OIDC and revocable sessions, transactional replay-safe presence/time tracking, scoped project membership, people/catalog/project administration with optional employee/login linking, organization-timezone monthly HTML/CSV reporting, precision-preserving paginated self-service correction, responsive mutation feedback and a live current timer, bounded administrator audit visibility, and quarantine-first scanned project documents are implemented. Production object storage/document policy, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
+> **Status:** pre-release modernization. Local OIDC with brute-force protection and capped revocable sessions, transactional replay-safe presence/time tracking, scoped project membership, people/catalog/project administration with optional employee/login linking, organization-timezone monthly HTML/CSV reporting, precision-preserving paginated self-service correction, responsive mutation feedback and a live current timer, bounded administrator audit visibility, and quarantine-first scanned project documents are implemented. Production object storage/document policy, legacy ETL, account/role lifecycle, and production operational controls remain incomplete. The local stack uses synthetic data only; do not use this release for production timekeeping or expose it beyond loopback.
 
 ## History of PPTS
 
@@ -100,7 +100,9 @@ npm run typecheck
 npm test                  # pure unit tests; included in verify
 npm run test:contract     # every route/business action retains test evidence
 npm run test:integration  # real PostgreSQL; CI migrates an empty test database
+npm run maintenance:sessions        # purge revoked, expired, and idle sessions
 npm run maintenance:clock-receipts  # purge expired clock/presence retry receipts
+npm run operations:backup-restore-smoke  # logical restore into an isolated temporary DB
 npm run build
 npm run verify             # static, dependency, unit, contract, and build gates
 ```

@@ -47,7 +47,15 @@ On macOS, the script also detects whether a Podman machine exists and starts or 
 
 The app is available at <http://localhost:3000>. PostgreSQL has no host-published port. Migrations run as a one-shot service, followed by an idempotent one-shot seed for the synthetic Northstar Studio / PPTS Modernization catalog and active Engineering, Planning, and Testing work codes. The app waits for both catalog seeding and Keycloak reconciliation. The seed does not create users, memberships, presence, or time entries. Application and identity data persist separately in the Podman-managed `ppts-db` and `ppts-keycloak-db` volumes. Private document bytes and malware definitions persist in `ppts-documents` and `ppts-clamav-definitions`; quarantined bytes are never served. See [project-document operations](project-documents.md).
 
-### Clock/presence receipt maintenance
+### Authentication and receipt maintenance
+
+Local Keycloak applies progressive brute-force protection after five failed credential attempts. PPTS independently limits each user to five active application sessions; concurrent callbacks serialize on the user row and revoke the oldest sessions first. Sessions have an eight-hour absolute lifetime and one-hour idle lifetime.
+
+Purge revoked, absolutely expired, and idle session rows—which include encrypted provider-token material—with:
+
+```bash
+npm run maintenance:sessions
+```
 
 Clock and presence mutations retain actor-scoped replay receipts for 24 hours so a retried request cannot duplicate a transition or success audit. Purge expired rows with:
 
@@ -55,7 +63,7 @@ Clock and presence mutations retain actor-scoped replay receipts for 24 hours so
 npm run maintenance:clock-receipts
 ```
 
-The command uses `DATABASE_URL`, deletes only expired receipts, and prints only the removed count. Run it at least daily in a single scheduled maintenance job in production. Local pre-release use may run it manually; a production scheduler and monitoring policy remain a release requirement. Deleting an unexpired receipt weakens retry guarantees, so do not truncate the table during normal operation.
+Both commands use `DATABASE_URL`, delete only inactive/expired rows, and print only the removed count. Run both at least daily in a single scheduled maintenance job in production and alert on failure. Local pre-release use may run them manually; a production scheduler and monitoring policy remain a release requirement. Deleting an unexpired receipt weakens retry guarantees, so do not truncate the receipt table during normal operation. Production also requires distributed rate controls at the trusted TLS edge; in-process client-IP throttling is intentionally not used because proxy-derived addresses are unsafe without an approved ingress topology.
 
 ### Lifecycle commands
 
@@ -125,6 +133,18 @@ npm run dev
 ```
 
 Do not add exported values to shell history. Prefer a user-level secret manager or protected external file. `OIDC_INTERNAL_ISSUER` is optional for trusted server-side routing that differs from the browser-facing issuer.
+
+## PostgreSQL backup/restore smoke
+
+With the local stack running and otherwise idle, verify logical backup recoverability with:
+
+```bash
+npm run operations:backup-restore-smoke
+```
+
+The script creates a PostgreSQL custom-format archive inside the database container, verifies its catalog, restores it into a randomly named isolated database, and compares every public table's row count plus constraint/index totals and migration history. Temporary archives and databases are removed on success, failure, or interruption. It never prints credentials or copies database contents into the repository or host filesystem.
+
+This smoke proves the current local database is logically restorable; it does not replace encrypted off-host production backups, point-in-time recovery, retention policy, access controls, document-object reconciliation, or scheduled restore drills.
 
 ## Troubleshooting
 

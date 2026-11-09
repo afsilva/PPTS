@@ -315,13 +315,36 @@ fi
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR_B" -X POST -H "Origin: $APP" "$APP/auth/logout")
 check "employee logout succeeds" $([ "$code" = "303" -o "$code" = "200" ]; echo $?)
 
-# --- 5. Inactive users are denied ----------------------------------------------
+# --- 5. Session cap and inactive users ------------------------------------------
+# Independent browser jars prove that the sixth login revokes the oldest local
+# application session without affecting the newest five.
+cap_first=""; cap_last=""
+cap_index=1
+while [ "$cap_index" -le 6 ]; do
+  cap_jar="$WORK/jar-cap-$cap_index.txt"
+  result=$(perform_login "$cap_jar" "casey.employee" "${KEYCLOAK_CASEY_PASSWORD}")
+  cap_code=$(printf '%s' "$result" | awk '{print $2}')
+  [ "$cap_index" = 1 ] && cap_first=$cap_jar
+  cap_last=$cap_jar
+  [ "$cap_code" = 200 ] || break
+  cap_index=$((cap_index + 1))
+done
+check "six independent employee logins complete" $([ "$cap_index" = 7 ]; echo $?)
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$cap_first" "$APP/api/auth/session")
+check "session cap revokes the oldest application session" $([ "$code" = 401 ]; echo $?)
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$cap_last" "$APP/api/auth/session")
+check "session cap preserves the newest application session" $([ "$code" = 200 ]; echo $?)
+
 KEYCLOAK_CONTAINER=$("$PODMAN" ps --format '{{.Names}}' 2>/dev/null | grep -m1 -E 'keycloak-[0-9]+$' || true)
 if [ -n "$KEYCLOAK_CONTAINER" ]; then
   KC_CONFIG=/tmp/ppts-e2e-kcadm.config
   "$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh config credentials \
     --config "$KC_CONFIG" --server http://127.0.0.1:8080 --realm master \
     --user local-admin --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null 2>&1
+  brute_force=$("$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh get realms/ppts \
+    --config "$KC_CONFIG" --fields bruteForceProtected,failureFactor,waitIncrementSeconds \
+    --format csv --noquotes 2>/dev/null)
+  check "Keycloak brute-force protection is reconciled" $(printf '%s' "$brute_force" | grep -q '^true,5,60$'; echo $?)
   uid=$("$PODMAN" exec "$KEYCLOAK_CONTAINER" /opt/keycloak/bin/kcadm.sh get users \
     --config "$KC_CONFIG" -r ppts -q username=casey.employee --fields id \
     --format csv --noquotes 2>/dev/null | sed -n '1p')

@@ -13,6 +13,8 @@
     "start": "next start",
     "worker:documents": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --import tsx src/workers/documents.ts",
     "maintenance:clock-receipts": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --import tsx scripts/cleanup-clock-receipts.ts",
+    "maintenance:sessions": "node --conditions react-server --import ./tests/setup/node-exports-shim.mjs --import tsx scripts/cleanup-sessions.ts",
+    "operations:backup-restore-smoke": "./scripts/backup-restore-smoke.sh",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

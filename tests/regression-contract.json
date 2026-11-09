@@ -453,6 +453,28 @@
       ]
     },
     {
+      "id": "auth.session.create-capped.service",
+      "implementation": "src/auth/session-policy.ts",
+      "export": "persistCappedSession",
+      "evidence": [
+        {
+          "file": "tests/integration/session-lifecycle.test.ts",
+          "contains": "session creation serializes concurrent callbacks and enforces the active cap"
+        }
+      ]
+    },
+    {
+      "id": "auth.session.cleanup.service",
+      "implementation": "src/auth/session-policy.ts",
+      "export": "purgeInactiveSessions",
+      "evidence": [
+        {
+          "file": "tests/integration/session-lifecycle.test.ts",
+          "contains": "maintenance removes revoked, expired, and idle rows but preserves active sessions"
+        }
+      ]
+    },
+    {
       "id": "time.clock-receipts.cleanup.service",
       "implementation": "src/modules/time-tracking/service.ts",
       "export": "purgeExpiredClockMutationReceipts",

@@ -6,7 +6,16 @@ $kcadm config credentials --server "$server" --realm master --user "$KEYCLOAK_AD
 # This realm is development-only and browser-facing solely through a loopback
 # HTTP listener. Persisted realm state must not retain Keycloak's external-HTTPS
 # requirement, which would reject the canonical local authorization flow.
-$kcadm update realms/ppts -s sslRequired=none >/dev/null
+$kcadm update realms/ppts \
+  -s sslRequired=none \
+  -s bruteForceProtected=true \
+  -s permanentLockout=false \
+  -s failureFactor=5 \
+  -s waitIncrementSeconds=60 \
+  -s quickLoginCheckMilliSeconds=1000 \
+  -s minimumQuickLoginWaitSeconds=60 \
+  -s maxFailureWaitSeconds=900 \
+  -s maxDeltaTimeSeconds=43200 >/dev/null
 
 client_id=$($kcadm get clients -r ppts -q clientId=ppts-local --fields id --format csv --noquotes | sed -n '1p')
 [ -n "$client_id" ] || { echo "Canonical ppts-local client is missing" >&2; exit 1; }

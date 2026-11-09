@@ -53,6 +53,7 @@ Production will use managed TLS, PostgreSQL, OIDC, secret storage, backups, and 
 - UUID identifiers, UTC `timestamptz`, foreign keys, explicit deletion behavior.
 - One open time entry per user via a partial unique index.
 - Clock and presence commands use actor-scoped UUID receipts with canonical payload fingerprints and 24-hour retention; receipt, state, and audit commit atomically.
+- Application sessions have absolute/idle expiry, explicit maintenance cleanup, and a transactionally enforced five-active-session cap per user.
 - Acting identity always comes from the session.
 - Archive business entities; retain time/audit information under an approved policy.
 - Collect the minimum PII. Legacy home address, birthday, and personal phone fields are excluded until purpose and retention are approved.

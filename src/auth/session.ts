@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import { getDatabase } from "@/db/client";
 import { getAuthConfig } from "./config";
 import { randomToken, seal, sha256, unseal } from "./crypto";
-
-const SESSION_SECONDS = 8 * 60 * 60;
-const IDLE_SECONDS = 60 * 60;
-const TOUCH_SECONDS = 5 * 60;
+import {
+  persistCappedSession,
+  SESSION_IDLE_SECONDS,
+  SESSION_SECONDS,
+  SESSION_TOUCH_SECONDS,
+} from "./session-policy";
 interface SessionCookie {
   v: 1;
   sid: string;
@@ -30,14 +32,12 @@ function options(maxAge = SESSION_SECONDS) {
 export async function createSession(userId: string, idToken: string) {
   const sid = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_SECONDS * 1000);
-  await getDatabase().session.create({
-    data: {
-      idHash: sha256(sid),
-      userId,
-      expiresAt,
-      idTokenHash: sha256(idToken),
-      idTokenCipher: await seal({ idToken }, "ppts-id-token"),
-    },
+  await persistCappedSession({
+    idHash: sha256(sid),
+    userId,
+    expiresAt,
+    idTokenHash: sha256(idToken),
+    idTokenCipher: await seal({ idToken }, "ppts-id-token"),
   });
   const value = await seal(
     { v: 1, sid, userId, exp: Math.floor(expiresAt.getTime() / 1000) } satisfies SessionCookie,
@@ -67,12 +67,12 @@ export async function readSession() {
       !record ||
       record.revokedAt ||
       record.expiresAt <= now ||
-      record.lastSeenAt.getTime() + IDLE_SECONDS * 1000 <= now.getTime() ||
+      record.lastSeenAt.getTime() + SESSION_IDLE_SECONDS * 1000 <= now.getTime() ||
       !record.user.active ||
       record.userId !== data.userId
     )
       return null;
-    if (record.lastSeenAt.getTime() + TOUCH_SECONDS * 1000 <= now.getTime())
+    if (record.lastSeenAt.getTime() + SESSION_TOUCH_SECONDS * 1000 <= now.getTime())
       await getDatabase().session.updateMany({
         where: { idHash: record.idHash, revokedAt: null },
         data: { lastSeenAt: now },
